@@ -46,12 +46,16 @@ az role assignment create `
     --scope $STATE_SA_ID
 
 Write-Host "Adding federated credential for environment 'dev'..."
-az ad app federated-credential create --id $APP_ID --parameters (@{
+$credJson = @{
     name      = "github-actions-dev"
     issuer    = "https://token.actions.githubusercontent.com"
     subject   = "repo:${GitHubRepo}:environment:dev"
     audiences = @("api://AzureADTokenExchange")
-} | ConvertTo-Json)
+} | ConvertTo-Json -Compress
+$tempCred = [System.IO.Path]::GetTempFileName() + ".json"
+$credJson | Set-Content $tempCred -Encoding utf8
+az ad app federated-credential create --id $APP_ID --parameters "@$tempCred"
+Remove-Item $tempCred
 
 Write-Host ""
 Write-Host "Done. Add these as GitHub secrets (Settings -> Secrets and variables -> Actions):"
