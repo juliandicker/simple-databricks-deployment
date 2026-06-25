@@ -33,6 +33,13 @@ az role assignment create `
     --role Contributor `
     --scope "/subscriptions/$SUBSCRIPTION_ID"
 
+Write-Host "Assigning User Access Administrator on subscription (needed for Terraform role assignments)..."
+az role assignment create `
+    --assignee-object-id $SP_OID `
+    --assignee-principal-type ServicePrincipal `
+    --role "User Access Administrator" `
+    --scope "/subscriptions/$SUBSCRIPTION_ID"
+
 Write-Host "Assigning Storage Blob Data Contributor on state storage account..."
 $STATE_SA_ID = az storage account show `
     --name $STATE_SA `
