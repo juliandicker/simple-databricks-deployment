@@ -1,5 +1,5 @@
 locals {
-  layers               = ["landing", "bronze", "silver", "gold"]
+  layers               = ["bronze", "silver", "gold"]
   storage_account_name = replace("${var.prefix}adls", "-", "")
 
   tags = {
@@ -33,6 +33,35 @@ resource "azurerm_storage_container" "data" {
   for_each           = toset(local.layers)
   name               = each.key
   storage_account_id = azurerm_storage_account.adls.id
+}
+
+# Landing is separate — raw file drop zone backed by a Unity Catalog external volume
+resource "azurerm_storage_container" "landing" {
+  name               = "landing"
+  storage_account_id = azurerm_storage_account.adls.id
+}
+
+moved {
+  from = azurerm_storage_container.data["landing"]
+  to   = azurerm_storage_container.landing
+}
+
+resource "azurerm_storage_management_policy" "landing_purge" {
+  storage_account_id = azurerm_storage_account.adls.id
+
+  rule {
+    name    = "purge-landing-after-30-days"
+    enabled = true
+    filters {
+      prefix_match = ["landing/"]
+      blob_types   = ["blockBlob"]
+    }
+    actions {
+      base_blob {
+        delete_after_days_since_modification_greater_than = 30
+      }
+    }
+  }
 }
 
 resource "azurerm_storage_container" "metastore" {
