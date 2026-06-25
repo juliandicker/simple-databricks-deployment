@@ -40,3 +40,18 @@ variable "unity_catalog_admins" {
   default     = []
   description = "Databricks account-level users or groups to grant metastore admin"
 }
+
+variable "landing_sources" {
+  type        = map(list(string))
+  default     = {}
+  description = <<-EOT
+    Map of landing source name to the Databricks principals (users, groups, or
+    service principals) granted READ_VOLUME + WRITE_VOLUME on that source's volume.
+    Each source gets its own sub-path: /Volumes/landing/raw/<source>/
+    Example:
+      landing_sources = {
+        salesforce = ["group:sales-engineers"]
+        sap        = ["group:finance-team", "servicePrincipal:etl-sp-app-id"]
+      }
+  EOT
+}

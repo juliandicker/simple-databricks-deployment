@@ -82,18 +82,20 @@ resource "databricks_schema" "landing_raw" {
   force_destroy = true
 }
 
-resource "databricks_volume" "landing_raw" {
+resource "databricks_volume" "landing_sources" {
   provider         = databricks.workspace
-  name             = "files"
+  for_each         = var.landing_sources
+  name             = each.key
   catalog_name     = databricks_catalog.landing.name
   schema_name      = databricks_schema.landing_raw.name
   volume_type      = "EXTERNAL"
-  storage_location = "abfss://landing@${azurerm_storage_account.adls.name}.dfs.core.windows.net/raw/"
-  comment          = "Raw file drop zone; blobs purged after 30 days by Azure lifecycle policy"
+  storage_location = "abfss://landing@${azurerm_storage_account.adls.name}.dfs.core.windows.net/raw/${each.key}/"
+  comment          = "Landing drop zone for ${each.key}; blobs purged after 30 days"
 
   depends_on = [databricks_external_location.landing]
 }
 
+# USE_CATALOG + USE_SCHEMA lets principals navigate to the catalog without granting data access
 resource "databricks_grants" "landing_catalog" {
   provider = databricks.workspace
   catalog  = databricks_catalog.landing.name
@@ -104,12 +106,18 @@ resource "databricks_grants" "landing_catalog" {
   }
 }
 
-resource "databricks_grants" "landing_volume" {
+resource "databricks_grants" "landing_sources" {
   provider = databricks.workspace
-  volume   = "${databricks_catalog.landing.name}.${databricks_schema.landing_raw.name}.${databricks_volume.landing_raw.name}"
+  for_each = var.landing_sources
+  volume   = "${databricks_catalog.landing.name}.${databricks_schema.landing_raw.name}.${each.key}"
 
-  grant {
-    principal  = "account users"
-    privileges = ["READ_VOLUME", "WRITE_VOLUME"]
+  dynamic "grant" {
+    for_each = each.value
+    content {
+      principal  = grant.value
+      privileges = ["READ_VOLUME", "WRITE_VOLUME"]
+    }
   }
+
+  depends_on = [databricks_volume.landing_sources]
 }

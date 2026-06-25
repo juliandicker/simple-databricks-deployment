@@ -5,3 +5,9 @@ prefix                = "dbplat-simple"
 owner                 = "your-email@example.com"
 cost_centre           = "your-cost-centre"
 databricks_account_id = "00000000-0000-0000-0000-000000000000"
+
+# One entry per source; principals can be users, groups, or service principals
+landing_sources = {
+  salesforce = ["group:sales-engineers"]
+  sap        = ["group:finance-team", "servicePrincipal:00000000-0000-0000-0000-000000000000"]
+}
