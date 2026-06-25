@@ -82,7 +82,6 @@ resource "databricks_volume" "landing_raw" {
   volume_type      = "EXTERNAL"
   storage_location = "abfss://landing@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
   comment          = "Raw file drop zone; blobs purged after 30 days by Azure lifecycle policy"
-  force_destroy    = true
 
   depends_on = [databricks_external_location.landing]
 }
