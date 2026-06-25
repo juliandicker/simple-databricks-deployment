@@ -57,11 +57,19 @@ resource "databricks_grants" "catalog" {
   }
 }
 
-# Landing: catalog with no storage_root (no Delta tables), a raw schema, and an external volume
+# Rename in state to avoid destroy+recreate collision on the same catalog name
+moved {
+  from = databricks_catalog.this["landing"]
+  to   = databricks_catalog.landing
+}
+
+# Landing: storage_root kept (immutable field, matches existing resource); no table-creation
+# privileges granted so it stays a file-only zone in practice
 resource "databricks_catalog" "landing" {
   provider      = databricks.workspace
   name          = "landing"
   comment       = "Landing zone — raw files only via Unity Catalog volume, no Delta tables"
+  storage_root  = "abfss://landing@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
   force_destroy = true
 
   depends_on = [databricks_external_location.landing]
