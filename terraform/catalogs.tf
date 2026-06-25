@@ -88,7 +88,7 @@ resource "databricks_volume" "landing_raw" {
   catalog_name     = databricks_catalog.landing.name
   schema_name      = databricks_schema.landing_raw.name
   volume_type      = "EXTERNAL"
-  storage_location = "abfss://landing@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
+  storage_location = "abfss://landing@${azurerm_storage_account.adls.name}.dfs.core.windows.net/raw/"
   comment          = "Raw file drop zone; blobs purged after 30 days by Azure lifecycle policy"
 
   depends_on = [databricks_external_location.landing]
