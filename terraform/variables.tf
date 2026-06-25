@@ -40,3 +40,4 @@ variable "unity_catalog_admins" {
   default     = []
   description = "Databricks account-level users or groups to grant metastore admin"
 }
+
