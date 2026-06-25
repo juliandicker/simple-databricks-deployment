@@ -1,6 +1,6 @@
 # simple-databricks-deployment
 
-Minimum viable Databricks lakehouse on Azure. One workspace, ADLS Gen2, Unity Catalog with four layers (landing → bronze → silver → gold), deployed entirely via Terraform with OIDC auth and no stored secrets.
+Minimum viable Databricks lakehouse on Azure. One workspace, ADLS Gen2, Unity Catalog (landing raw-file zone + bronze/silver/gold Delta layers), deployed entirely via Terraform with OIDC auth and no stored secrets.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ Minimum viable Databricks lakehouse on Azure. One workspace, ADLS Gen2, Unity Ca
 Azure Resource Group (dbplat-simple-rg)
 ├── ADLS Gen2 storage account
 │   ├── container: metastore  (Unity Catalog system tables)
-│   ├── container: landing
+│   ├── container: landing    (30-day lifecycle purge on all blobs)
 │   ├── container: bronze
 │   ├── container: silver
 │   └── container: gold
@@ -22,11 +22,26 @@ Unity Catalog (account-level)
     ├── External Location: bronze
     ├── External Location: silver
     ├── External Location: gold
-    ├── Catalog: landing  → schema: default
+    ├── Catalog: landing  → schema: raw → volume: <source>  (one per source, external)
     ├── Catalog: bronze   → schema: default
     ├── Catalog: silver   → schema: default
     └── Catalog: gold     → schema: default
 ```
+
+### Landing zone
+
+Landing is a raw file drop zone — CSV, JSON, Parquet, etc. Files are purged automatically after 30 days by an Azure lifecycle policy. No Delta tables are created here.
+
+Each data source gets its own Unity Catalog external volume at `/Volumes/landing/raw/<source>/` with access locked to the principals you specify. Define sources in `terraform.tfvars`:
+
+```hcl
+landing_sources = {
+  salesforce = ["group:sales-engineers"]
+  sap        = ["group:finance-team", "servicePrincipal:<app-id>"]
+}
+```
+
+Adding a new source is a one-line tfvars change — no Terraform code changes needed. Principals can be Databricks account users (`user:name@example.com`), groups (`group:name`), or service principals (`servicePrincipal:<application-id>`).
 
 ## Prerequisites
 
@@ -60,7 +75,7 @@ No client secrets are stored in GitHub. Instead, GitHub Actions exchanges a shor
 
 The script will print the values you need to add as GitHub secrets. It handles:
 - Creating the app registration and service principal
-- Assigning Contributor on the subscription
+- Assigning Contributor + User Access Administrator on the subscription (both needed — Terraform creates role assignments for Databricks managed identities)
 - Assigning Storage Blob Data Contributor on the state storage account
 - Adding the federated credential for the `dev` environment
 
