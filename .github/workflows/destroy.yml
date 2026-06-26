@@ -53,3 +53,4 @@ jobs:
           TF_VAR_databricks_account_id: ${{ secrets.DATABRICKS_ACCOUNT_ID }}
           TF_VAR_owner: ${{ secrets.OWNER }}
           TF_VAR_cost_centre: ${{ secrets.COST_CENTRE }}
+          TF_VAR_demo_user_password: ${{ secrets.DEMO_USER_PASSWORD }}

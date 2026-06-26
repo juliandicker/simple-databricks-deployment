@@ -99,6 +99,7 @@ All values are stored as secrets — none are stored as plaintext variables.
 | `DATABRICKS_ACCOUNT_ID` | Your Databricks account ID (from accounts.azuredatabricks.net) |
 | `OWNER` | Owner tag value — kept secret to avoid leaking personal email in a public repo |
 | `COST_CENTRE` | Cost centre tag value |
+| `DEMO_USER_PASSWORD` | Initial password for the three demo users (Norma Redacta, Seymour Cleartext, Stewart Tagger) |
 
 These are set at the **environment** level (`dev`) to match the `environment: dev` declared in each workflow job.
 
