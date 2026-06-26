@@ -56,9 +56,10 @@ Write-Host "Granting Microsoft Graph application permissions (for azuread Terraf
 # These are application permissions (not delegated) and require admin consent.
 $GRAPH_API = "00000003-0000-0000-c000-000000000000"  # Microsoft Graph
 $graphPerms = @(
-    "62a82d76-70ea-41e2-9197-370581804d09"  # Group.ReadWrite.All  — azuread_group, azuread_group_member
-    "741f803b-c850-494e-b5df-cde7c675a1ca"  # User.ReadWrite.All   — azuread_user
-    "dbb9058a-0e50-45d7-ae91-66909b5d4664"  # Domain.Read.All      — data.azuread_domains
+    "62a82d76-70ea-41e2-9197-370581804d09"  # Group.ReadWrite.All        — azuread_group, azuread_group_member
+    "741f803b-c850-494e-b5df-cde7c675a1ca"  # User.ReadWrite.All         — azuread_user
+    "dbb9058a-0e50-45d7-ae91-66909b5d4664"  # Domain.Read.All            — data.azuread_domains
+    "1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9"  # Application.ReadWrite.All  — azuread_application, azuread_service_principal
 )
 foreach ($perm in $graphPerms) {
     az ad app permission add --id $APP_ID --api $GRAPH_API --api-permissions "$perm=Role" | Out-Null
