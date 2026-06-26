@@ -23,11 +23,12 @@ provider "azurerm" {
   subscription_id = var.subscription_id
 }
 
-# Entra ID — creates security groups for pipeline ABAC governance.
-# The GitHub Actions service principal needs the Microsoft Graph
-# Group.ReadWrite.All application permission to create/manage groups.
-# Grant it in Entra: App registrations -> dbplat-simple-github-actions
-# -> API permissions -> Add -> Microsoft Graph -> Application -> Group.ReadWrite.All
+# Entra ID — creates security groups, demo users, and group memberships.
+# The GitHub Actions service principal needs three Microsoft Graph application
+# permissions (granted and consented by scripts/oidc-setup.ps1):
+#   Group.ReadWrite.All  — azuread_group, azuread_group_member
+#   User.ReadWrite.All   — azuread_user
+#   Domain.Read.All      — data.azuread_domains
 provider "azuread" {
   use_oidc  = true
   tenant_id = var.tenant_id

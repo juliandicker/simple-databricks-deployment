@@ -52,6 +52,20 @@ az role assignment create `
     --role "Storage Blob Data Contributor" `
     --scope $STATE_SA_ID
 
+Write-Host "Granting Microsoft Graph application permissions (for azuread Terraform provider)..."
+# These are application permissions (not delegated) and require admin consent.
+$GRAPH_API = "00000003-0000-0000-c000-000000000000"  # Microsoft Graph
+$graphPerms = @(
+    "62a82d76-70ea-41e2-9197-370581804d09"  # Group.ReadWrite.All  — azuread_group, azuread_group_member
+    "741f803b-c850-494e-b5df-cde7c675a1ca"  # User.ReadWrite.All   — azuread_user
+    "dbb9058a-0e50-45d7-ae91-66909b5d4664"  # Domain.Read.All      — data.azuread_domains
+)
+foreach ($perm in $graphPerms) {
+    az ad app permission add --id $APP_ID --api $GRAPH_API --api-permissions "$perm=Role" | Out-Null
+}
+Write-Host "Granting admin consent for Graph permissions (requires Global/App Admin)..."
+az ad app permission admin-consent --id $APP_ID
+
 Write-Host "Adding federated credential for environment 'dev'..."
 $credJson = @{
     name      = "github-actions-dev"
