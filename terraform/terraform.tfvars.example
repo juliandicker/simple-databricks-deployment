@@ -5,6 +5,7 @@ prefix                = "dbplat-simple"
 owner                 = "your-email@example.com"
 cost_centre           = "your-cost-centre"
 databricks_account_id = "00000000-0000-0000-0000-000000000000"
+demo_user_password    = "Dbx@Demo2025!"
 
 # One entry per source; principals can be users, groups, or service principals
 landing_sources = {

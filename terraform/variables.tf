@@ -41,6 +41,12 @@ variable "unity_catalog_admins" {
   description = "Databricks account-level users or groups to grant metastore admin"
 }
 
+variable "demo_user_password" {
+  type        = string
+  sensitive   = true
+  description = "Initial password for the three demo users (Norma Redacta, Seymour Cleartext, Stewart Tagger). Must satisfy the tenant's password complexity policy."
+}
+
 variable "landing_sources" {
   type        = map(list(string))
   default     = {}
