@@ -97,6 +97,7 @@ resource "databricks_metastore" "this" {
   name          = "${var.prefix}-metastore"
   region        = var.location
   storage_root  = "abfss://metastore@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
+  owner         = databricks_group.data_platform_admins.display_name
   force_destroy = true
 
   depends_on = [azurerm_role_assignment.access_connector_storage]
@@ -106,6 +107,15 @@ resource "databricks_metastore_assignment" "this" {
   provider     = databricks.accounts
   metastore_id = databricks_metastore.this.id
   workspace_id = azurerm_databricks_workspace.this.workspace_id
+}
+
+resource "databricks_workspace_assignment" "data_platform_admins" {
+  provider     = databricks.accounts
+  workspace_id = azurerm_databricks_workspace.this.workspace_id
+  principal_id = databricks_group.data_platform_admins.id
+  permissions  = ["ADMIN"]
+
+  depends_on = [databricks_metastore_assignment.this]
 }
 
 resource "databricks_storage_credential" "this" {

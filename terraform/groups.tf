@@ -52,3 +52,25 @@ resource "databricks_group" "data_stewards" {
   provider     = databricks.accounts
   display_name = azuread_group.data_stewards.display_name
 }
+
+# ---------------------------------------------------------------------------
+# Data platform admins — Databricks account-level admin group
+# ---------------------------------------------------------------------------
+# Membership is managed explicitly here; no Entra group or SCIM needed for
+# a small, stable set of admins.
+
+data "databricks_user" "platform_admin" {
+  provider  = databricks.accounts
+  user_name = var.owner
+}
+
+resource "databricks_group" "data_platform_admins" {
+  provider     = databricks.accounts
+  display_name = "data-platform-admins"
+}
+
+resource "databricks_group_member" "data_platform_admins_julian" {
+  provider  = databricks.accounts
+  group_id  = databricks_group.data_platform_admins.id
+  member_id = data.databricks_user.platform_admin.id
+}
