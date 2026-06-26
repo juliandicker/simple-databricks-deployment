@@ -47,6 +47,11 @@ variable "demo_user_password" {
   description = "Initial password for the three demo users (Norma Redacta, Seymour Cleartext, Stewart Tagger). Must satisfy the tenant's password complexity policy."
 }
 
+variable "pipeline_sp_client_id" {
+  type        = string
+  description = "Client ID of the sp-tfl-pipeline app registration (created out-of-band). Add as GitHub secret PIPELINE_SP_CLIENT_ID."
+}
+
 variable "landing_sources" {
   type        = map(list(string))
   default     = {}
