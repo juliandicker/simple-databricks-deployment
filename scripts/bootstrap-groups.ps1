@@ -1,16 +1,18 @@
 <#
 .SYNOPSIS
-    Creates the three demo Entra groups and one test user per group.
+    Creates three demo Entra users and adds them to the pipeline governance groups.
 
 .DESCRIPTION
-    Idempotent — safe to run multiple times. Creates:
-      Groups : sg-dbplat-standard-readers, sg-dbplat-pii-readers, sg-dbplat-data-stewards
-      Users  : Norma Redacta (standard), Seymour Cleartext (PII), Stewart Tagger (steward)
+    The groups themselves are provisioned by Terraform (groups.tf) — run
+    'terraform apply' before this script. This script only creates the
+    demo user accounts and assigns each to its group.
 
-    The matching Databricks account-level groups are provisioned by Terraform (groups.tf).
-    Once SCIM is enabled in Entra, group members sync automatically into Databricks.
-    To set up SCIM: Entra ID -> Enterprise Applications -> Azure Databricks ->
-    Provisioning -> enable automatic provisioning, scope to these three groups.
+    Idempotent — safe to run multiple times.
+
+    Users created:
+      Norma Redacta     → sg-dbplat-standard-readers  (PII masked)
+      Seymour Cleartext → sg-dbplat-pii-readers        (PII visible)
+      Stewart Tagger    → sg-dbplat-data-stewards       (full governance access)
 
 .PARAMETER Password
     Initial password for all three demo users. Must satisfy your tenant's
@@ -37,32 +39,7 @@ if (-not $TenantDomain) {
 Write-Host "Tenant domain: $TenantDomain"
 
 # ---------------------------------------------------------------------------
-# Groups
-# ---------------------------------------------------------------------------
-
-$groupNames = @(
-    "sg-dbplat-standard-readers",
-    "sg-dbplat-pii-readers",
-    "sg-dbplat-data-stewards"
-)
-
-$groupIds = @{}
-
-foreach ($name in $groupNames) {
-    $existing = az ad group show --group $name 2>$null | ConvertFrom-Json
-    if ($existing) {
-        Write-Host "Group '$name' already exists — skipping." -ForegroundColor Yellow
-        $groupIds[$name] = $existing.id
-    } else {
-        Write-Host "Creating group '$name'..."
-        $group = az ad group create --display-name $name --mail-nickname $name | ConvertFrom-Json
-        $groupIds[$name] = $group.id
-        Write-Host "  Created ($($group.id))" -ForegroundColor Green
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Users — names chosen to match their access tier
+# Users — names chosen to reflect their access tier
 #
 #   Norma Redacta     → standard-readers  (her data is always redacted)
 #   Seymour Cleartext → pii-readers       (sees more, in cleartext)
@@ -80,6 +57,7 @@ $summary = @()
 foreach ($u in $users) {
     $upn = "$($u.Nickname)@$TenantDomain"
 
+    # User
     $existing = az ad user show --id $upn 2>$null | ConvertFrom-Json
     if ($existing) {
         Write-Host "User '$upn' already exists — skipping creation." -ForegroundColor Yellow
@@ -87,21 +65,26 @@ foreach ($u in $users) {
     } else {
         Write-Host "Creating user '$($u.DisplayName)' ($upn)..."
         $user = az ad user create `
-            --display-name  $u.DisplayName `
+            --display-name        $u.DisplayName `
             --user-principal-name $upn `
-            --password $Password `
+            --password            $Password `
             --force-change-password-next-sign-in false | ConvertFrom-Json
         $userId = $user.id
         Write-Host "  Created ($userId)" -ForegroundColor Green
     }
 
-    $groupId  = $groupIds[$u.Group]
-    $isMember = az ad group member check --group $groupId --member-id $userId --query value -o tsv
+    # Group membership — group must already exist (created by terraform apply)
+    $group    = az ad group show --group $u.Group 2>$null | ConvertFrom-Json
+    if (-not $group) {
+        Write-Error "Group '$($u.Group)' not found. Run 'terraform apply' in the terraform/ directory first."
+        exit 1
+    }
+    $isMember = az ad group member check --group $group.id --member-id $userId --query value -o tsv
     if ($isMember -eq "true") {
         Write-Host "  Already a member of '$($u.Group)'" -ForegroundColor Yellow
     } else {
         Write-Host "  Adding to '$($u.Group)'..."
-        az ad group member add --group $groupId --member-id $userId | Out-Null
+        az ad group member add --group $group.id --member-id $userId | Out-Null
         Write-Host "  Added" -ForegroundColor Green
     }
 
@@ -122,8 +105,7 @@ Write-Host "Demo users ready:" -ForegroundColor Cyan
 $summary | Format-Table -AutoSize
 
 Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "  1. Run 'terraform apply' — this provisions the matching Databricks account groups."
-Write-Host "  2. Enable SCIM in Entra to sync group members automatically, or add users"
-Write-Host "     to the Databricks groups manually at https://accounts.azuredatabricks.net."
-Write-Host "  3. Run the governance-setup DAB job to apply catalog grants and column masks."
-Write-Host "  4. Log in as each user to test masked vs unmasked PII access."
+Write-Host "  1. Enable SCIM in Entra to sync group members into Databricks automatically:"
+Write-Host "     Entra ID -> Enterprise Applications -> Azure Databricks -> Provisioning"
+Write-Host "  2. Run the governance-setup DAB job to apply catalog grants and column masks."
+Write-Host "  3. Log in as each user to verify masked vs unmasked PII access."

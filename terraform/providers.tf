@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0"
+    }
     databricks = {
       source  = "databricks/databricks"
       version = "~> 1.60"
@@ -17,6 +21,16 @@ provider "azurerm" {
   features {}
   use_oidc        = true
   subscription_id = var.subscription_id
+}
+
+# Entra ID — creates security groups for pipeline ABAC governance.
+# The GitHub Actions service principal needs the Microsoft Graph
+# Group.ReadWrite.All application permission to create/manage groups.
+# Grant it in Entra: App registrations -> dbplat-simple-github-actions
+# -> API permissions -> Add -> Microsoft Graph -> Application -> Group.ReadWrite.All
+provider "azuread" {
+  use_oidc  = true
+  tenant_id = var.tenant_id
 }
 
 # Account-level: creates and assigns the Unity Catalog metastore
