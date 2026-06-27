@@ -53,9 +53,17 @@ jobs:
           TF_VAR_cost_centre: ${{ secrets.COST_CENTRE }}
           TF_VAR_demo_user_password: ${{ secrets.DEMO_USER_PASSWORD }}
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: tfl-disruption-data-pipeline
+
       - name: Push outputs to pipeline repo secrets
         env:
-          GH_TOKEN: ${{ secrets.PIPELINE_REPO_GH_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh secret set AZURE_CLIENT_ID \
             --body "$(terraform output -raw pipeline_sp_application_id)" \
