@@ -56,11 +56,13 @@ jobs:
       - name: Convert App private key to PKCS8
         id: pkcs8-key
         run: |
+          printf '%s' "$APP_PRIVATE_KEY" | tr -d '\r' > /tmp/app-key.pem
           {
             echo 'key<<PKCS8EOF'
-            echo "$APP_PRIVATE_KEY" | tr -d '\r' | openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt
+            openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in /tmp/app-key.pem
             echo 'PKCS8EOF'
           } >> "$GITHUB_OUTPUT"
+          rm /tmp/app-key.pem
         env:
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
