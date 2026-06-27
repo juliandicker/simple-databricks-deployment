@@ -92,3 +92,16 @@ resource "databricks_group_role" "data_platform_admins_account_admin" {
   role     = "account_admin"
 }
 
+# Add the CI service principal directly to the Databricks group so it inherits
+# metastore admin without waiting for AIM to sync the Entra membership.
+data "databricks_service_principal" "github_actions" {
+  provider       = databricks.accounts
+  application_id = data.azuread_service_principal.github_actions.client_id
+}
+
+resource "databricks_group_member" "data_platform_admins_github_actions_db" {
+  provider  = databricks.accounts
+  group_id  = databricks_group.data_platform_admins.id
+  member_id = data.databricks_service_principal.github_actions.id
+}
+

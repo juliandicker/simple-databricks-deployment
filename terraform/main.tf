@@ -144,5 +144,5 @@ resource "databricks_storage_credential" "this" {
   }
 
   force_destroy = true
-  depends_on    = [databricks_metastore_assignment.this]
+  depends_on    = [databricks_metastore_assignment.this, databricks_group_member.data_platform_admins_github_actions_db]
 }
