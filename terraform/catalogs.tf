@@ -45,8 +45,7 @@ resource "databricks_schema" "default" {
   force_destroy = true
 }
 
-# Silver and gold: account users get read-only browse + pipeline SP gets full access.
-# Bronze is intentionally absent here — see databricks_grants.bronze below.
+# All layers: account users can browse; pipeline SP has full ownership.
 resource "databricks_grants" "catalog" {
   provider = databricks.workspace
   for_each = toset(["silver", "gold"])
@@ -59,19 +58,22 @@ resource "databricks_grants" "catalog" {
 
   grant {
     principal  = databricks_service_principal.pipeline.application_id
-    privileges = ["USE_CATALOG", "USE_SCHEMA", "CREATE_TABLE", "CREATE_FUNCTION", "CREATE_MATERIALIZED_VIEW", "MODIFY", "SELECT", "MANAGE"]
+    privileges = ["ALL PRIVILEGES"]
   }
 }
 
-# Bronze: pipeline SP only. MANAGE allows the governance job to run SHOW GRANTS.
-# account users have zero access — enforced here and verified by test_bronze_access.py.
 resource "databricks_grants" "bronze" {
   provider = databricks.workspace
   catalog  = databricks_catalog.this["bronze"].name
 
   grant {
+    principal  = "account users"
+    privileges = ["USE_CATALOG", "USE_SCHEMA"]
+  }
+
+  grant {
     principal  = databricks_service_principal.pipeline.application_id
-    privileges = ["USE_CATALOG", "USE_SCHEMA", "CREATE_TABLE", "MODIFY", "SELECT"]
+    privileges = ["ALL PRIVILEGES"]
   }
 }
 
