@@ -77,3 +77,9 @@ resource "databricks_group" "data_platform_admins" {
   display_name = azuread_group.data_platform_admins.display_name
 }
 
+resource "databricks_group_role" "data_platform_admins_account_admin" {
+  provider = databricks.accounts
+  group_id = databricks_group.data_platform_admins.id
+  role     = "account_admin"
+}
+
