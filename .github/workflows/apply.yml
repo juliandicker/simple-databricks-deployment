@@ -53,12 +53,23 @@ jobs:
           TF_VAR_cost_centre: ${{ secrets.COST_CENTRE }}
           TF_VAR_demo_user_password: ${{ secrets.DEMO_USER_PASSWORD }}
 
+      - name: Convert App private key to PKCS8
+        id: pkcs8-key
+        run: |
+          {
+            echo 'key<<PKCS8EOF'
+            echo "$APP_PRIVATE_KEY" | openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt
+            echo 'PKCS8EOF'
+          } >> "$GITHUB_OUTPUT"
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          private-key: ${{ steps.pkcs8-key.outputs.key }}
           repositories: tfl-disruption-data-pipeline
 
       - name: Push outputs to pipeline repo secrets
