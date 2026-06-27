@@ -19,6 +19,7 @@ resource "databricks_group" "this" {
   provider     = databricks.accounts
   for_each     = var.groups
   display_name = azuread_group.this[each.key].display_name
+  external_id  = azuread_group.this[each.key].object_id
 }
 
 # ---------------------------------------------------------------------------
