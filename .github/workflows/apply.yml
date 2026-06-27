@@ -52,3 +52,14 @@ jobs:
           TF_VAR_owner: ${{ secrets.OWNER }}
           TF_VAR_cost_centre: ${{ secrets.COST_CENTRE }}
           TF_VAR_demo_user_password: ${{ secrets.DEMO_USER_PASSWORD }}
+
+      - name: Push outputs to pipeline repo secrets
+        env:
+          GH_TOKEN: ${{ secrets.PIPELINE_REPO_GH_TOKEN }}
+        run: |
+          gh secret set AZURE_CLIENT_ID \
+            --body "$(terraform output -raw pipeline_sp_application_id)" \
+            --repo juliandicker/tfl-disruption-data-pipeline
+          gh secret set DATABRICKS_HOST \
+            --body "$(terraform output -raw workspace_url)" \
+            --repo juliandicker/tfl-disruption-data-pipeline
