@@ -58,7 +58,7 @@ jobs:
         run: |
           {
             echo 'key<<PKCS8EOF'
-            echo "$APP_PRIVATE_KEY" | openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt
+            echo "$APP_PRIVATE_KEY" | tr -d '\r' | openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt
             echo 'PKCS8EOF'
           } >> "$GITHUB_OUTPUT"
         env:
