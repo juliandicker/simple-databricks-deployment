@@ -59,7 +59,7 @@ resource "databricks_grants" "catalog" {
 
   grant {
     principal  = databricks_service_principal.pipeline.application_id
-    privileges = ["USE_CATALOG", "USE_SCHEMA", "CREATE_TABLE", "CREATE_FUNCTION", "MODIFY", "SELECT", "MANAGE"]
+    privileges = ["USE_CATALOG", "USE_SCHEMA", "CREATE_TABLE", "CREATE_FUNCTION", "CREATE_MATERIALIZED_VIEW", "MODIFY", "SELECT", "MANAGE"]
   }
 }
 
