@@ -109,11 +109,29 @@ resource "databricks_metastore_assignment" "this" {
   workspace_id = azurerm_databricks_workspace.this.workspace_id
 }
 
+locals {
+  workspace_user_groups = [
+    databricks_group.standard_readers.id,
+    databricks_group.pii_readers.id,
+    databricks_group.data_stewards.id,
+  ]
+}
+
 resource "databricks_mws_permission_assignment" "data_platform_admins" {
   provider     = databricks.accounts
   workspace_id = azurerm_databricks_workspace.this.workspace_id
   principal_id = databricks_group.data_platform_admins.id
   permissions  = ["ADMIN"]
+
+  depends_on = [databricks_metastore_assignment.this]
+}
+
+resource "databricks_mws_permission_assignment" "workspace_users" {
+  provider     = databricks.accounts
+  count        = length(local.workspace_user_groups)
+  workspace_id = azurerm_databricks_workspace.this.workspace_id
+  principal_id = local.workspace_user_groups[count.index]
+  permissions  = ["USER"]
 
   depends_on = [databricks_metastore_assignment.this]
 }
