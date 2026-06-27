@@ -101,16 +101,13 @@ resource "databricks_metastore" "this" {
 
   # All Entra group memberships must be complete before any Databricks resource
   # is created. Everything Databricks chains from the metastore, so this single
-  # depends_on enforces the Entra-first ordering across the entire apply.
-  # Prevents races where Terraform recreates a Databricks group and wipes members
-  # that AIM had synced from Entra.
+  # depends_on enforces Entra-first ordering across the entire apply and prevents
+  # races where Terraform recreates a Databricks group and wipes AIM-synced members.
   depends_on = [
     azurerm_role_assignment.access_connector_storage,
-    azuread_group_member.data_platform_admins_julian,
-    azuread_group_member.data_platform_admins_github_actions,
-    azuread_group_member.norma_standard_readers,
-    azuread_group_member.seymour_pii_readers,
-    azuread_group_member.stewart_data_stewards,
+    azuread_group_member.users,
+    azuread_group_member.service_principals,
+    azuread_group_member.demo_users,
   ]
 }
 
@@ -120,29 +117,12 @@ resource "databricks_metastore_assignment" "this" {
   workspace_id = azurerm_databricks_workspace.this.workspace_id
 }
 
-locals {
-  workspace_user_groups = [
-    databricks_group.standard_readers.id,
-    databricks_group.pii_readers.id,
-    databricks_group.data_stewards.id,
-  ]
-}
-
-resource "databricks_mws_permission_assignment" "data_platform_admins" {
+resource "databricks_mws_permission_assignment" "this" {
   provider     = databricks.accounts
+  for_each     = { for k, v in var.groups : k => v if v.workspace_permission != null }
   workspace_id = azurerm_databricks_workspace.this.workspace_id
-  principal_id = databricks_group.data_platform_admins.id
-  permissions  = ["ADMIN"]
-
-  depends_on = [databricks_metastore_assignment.this]
-}
-
-resource "databricks_mws_permission_assignment" "workspace_users" {
-  provider     = databricks.accounts
-  count        = length(local.workspace_user_groups)
-  workspace_id = azurerm_databricks_workspace.this.workspace_id
-  principal_id = local.workspace_user_groups[count.index]
-  permissions  = ["USER"]
+  principal_id = databricks_group.this[each.key].id
+  permissions  = [each.value.workspace_permission]
 
   depends_on = [databricks_metastore_assignment.this]
 }
@@ -156,5 +136,5 @@ resource "databricks_storage_credential" "this" {
   }
 
   force_destroy = true
-  depends_on    = [databricks_metastore_assignment.this, databricks_group_member.data_platform_admins_github_actions_db]
+  depends_on    = [databricks_metastore_assignment.this, databricks_group_member.service_principals_db]
 }

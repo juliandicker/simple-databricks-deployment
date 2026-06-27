@@ -35,10 +35,33 @@ variable "databricks_account_id" {
   description = "Databricks account ID (visible at accounts.azuredatabricks.net)"
 }
 
-variable "unity_catalog_admins" {
-  type        = list(string)
-  default     = []
-  description = "Databricks account-level users or groups to grant metastore admin"
+variable "groups" {
+  description = "Entra security groups and their Databricks config. Add a new entry to provision a group end-to-end."
+  type = map(object({
+    display_name         = string
+    databricks_roles     = optional(list(string), [])
+    workspace_permission = optional(string)
+    inject_owner         = optional(bool, false)
+  }))
+}
+
+variable "group_members" {
+  description = "Members for each group key: existing user UPNs and service principal display names."
+  type = map(object({
+    user_upns          = optional(list(string), [])
+    service_principals = optional(list(string), [])
+  }))
+  default = {}
+}
+
+variable "demo_users" {
+  description = "Managed demo users to create in Entra and assign to a group by key."
+  type = map(object({
+    display_name  = string
+    mail_nickname = string
+    group_key     = string
+  }))
+  default = {}
 }
 
 variable "demo_user_password" {

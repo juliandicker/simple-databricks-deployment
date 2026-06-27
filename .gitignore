@@ -4,6 +4,7 @@
 *.tfstate.backup
 *.tfvars
 !terraform.tfvars.example
+!terraform/terraform.tfvars
 tfplan
 *.tfplan
 plan.txt
