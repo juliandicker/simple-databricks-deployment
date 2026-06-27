@@ -41,9 +41,9 @@ There are no lint or test commands — this is pure Terraform/PowerShell with no
 | `main.tf` | Azure resources: resource group, ADLS storage account + containers, Access Connector, workspace, landing lifecycle policy, metastore, workspace permission assignments |
 | `catalogs.tf` | All Unity Catalog objects: external locations, catalogs, schemas, volumes, grants |
 | `groups.tf` | Entra security groups, Databricks account-level mirror groups, group memberships, workspace bindings |
-| `service-principals.tf` | Pipeline service principal |
+| `service-principals.tf` | Service principals — data-driven via `var.service_principals`, each gets an Entra app registration, optional GitHub OIDC federated credential, and Databricks workspace registration |
 | `demo-users.tf` | Demo users (Norma Redacta, Seymour Cleartext, Stewart Tagger) and their Entra group memberships |
-| `variables.tf` | Input variables including `landing_sources` for per-source volume config |
+| `variables.tf` | Input variables including `groups`, `service_principals`, `demo_users`, and `landing_sources` — all data-driven |
 | `backend.tf` | Remote state in Azure Blob Storage — values here must match what `bootstrap.ps1` created |
 
 ### Two Databricks providers
@@ -106,6 +106,38 @@ Bronze is browse-only for account users — `SELECT` is withheld to enforce pipe
 - Federated credential for subject `repo:<org/repo>:environment:dev`
 
 The SP must also be added as a Databricks account admin manually at `accounts.azuredatabricks.net`.
+
+### Service principals
+
+Service principals are data-driven via `var.service_principals` in `service-principals.tf`, following the same pattern as groups and users. Each entry in the map creates:
+- An Entra app registration and service principal
+- A GitHub OIDC federated credential (if `github_repo` is set)
+- A Databricks workspace registration
+
+```hcl
+service_principals = {
+  pipeline = {
+    display_name       = "sp-tfl-pipeline"
+    github_repo        = "org/repo"
+    github_environment = "dev"
+  }
+}
+```
+
+Adding a new service principal requires only a tfvars change.
+
+### Cross-repo secret sync (GitHub App)
+
+After every `terraform apply`, the workflow pushes two outputs to `juliandicker/tfl-disruption-data-pipeline` as GitHub Actions secrets:
+
+| Secret | Terraform output |
+|---|---|
+| `AZURE_CLIENT_ID` | `pipeline_sp_application_id` |
+| `DATABRICKS_HOST` | `workspace_url` |
+
+This uses a GitHub App (`dbplat-deployment-bot`) instead of a PAT — no expiry, scoped only to the target repo with `secrets:write`. Two secrets are required in the `dev` environment:
+- `APP_ID` — numeric GitHub App ID
+- `APP_PRIVATE_KEY` — app private key in **PKCS#8** format (`-----BEGIN PRIVATE KEY-----`). GitHub generates keys in PKCS#1; convert before storing: `openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in original.pem | gh secret set APP_PRIVATE_KEY --env dev`
 
 ### Key constraint: one metastore per region
 

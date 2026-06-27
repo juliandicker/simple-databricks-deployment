@@ -134,8 +134,30 @@ All values are stored as secrets — none are stored as plaintext variables.
 | `OWNER` | Owner tag value — kept secret to avoid leaking personal email in a public repo |
 | `COST_CENTRE` | Cost centre tag value |
 | `DEMO_USER_PASSWORD` | Initial password for the three demo users (Norma Redacta, Seymour Cleartext, Stewart Tagger) |
+| `APP_ID` | Numeric ID of the `dbplat-deployment-bot` GitHub App (used to push outputs to the pipeline repo) |
+| `APP_PRIVATE_KEY` | Private key of the GitHub App in **PKCS#8** format — see note below |
 
 These are set at the **environment** level (`dev`) to match the `environment: dev` declared in each workflow job.
+
+> **GitHub App private key format**: GitHub generates App private keys in PKCS#1 format (`-----BEGIN RSA PRIVATE KEY-----`). GitHub Actions runners now use Node 24 which requires PKCS#8. Convert before storing:
+> ```powershell
+> & "C:\Program Files\Git\usr\bin\openssl.exe" pkcs8 -topk8 -inform PEM -outform PEM -nocrypt `
+>   -in "path\to\downloaded-key.pem" | gh secret set APP_PRIVATE_KEY --env dev --repo YOUR_ORG/YOUR_REPO
+> ```
+
+---
+
+## Step 3b — Create the GitHub App for cross-repo secret sync
+
+The apply workflow automatically pushes `AZURE_CLIENT_ID` (pipeline SP) and `DATABRICKS_HOST` (workspace URL) to any downstream pipeline repo after each apply. This uses a GitHub App rather than a PAT — no expiry and scoped only to the target repo.
+
+1. Go to **github.com → profile → Settings → Developer settings → GitHub Apps → New GitHub App**
+   - Set any homepage URL (e.g. your GitHub profile)
+   - Uncheck "Active" under Webhook
+   - Permissions → Repository → Secrets: **Read and write**
+2. After creating, click **Install App** in the sidebar and install it on the target pipeline repo only
+3. On the App settings page, note the **App ID** and click **Generate a private key**
+4. Convert and store the secrets in the `dev` environment (see the key format note in Step 3 above)
 
 ---
 
