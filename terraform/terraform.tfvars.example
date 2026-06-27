@@ -7,6 +7,14 @@ cost_centre           = "your-cost-centre"
 databricks_account_id = "00000000-0000-0000-0000-000000000000"
 demo_user_password    = "Dbx@Demo2025!"
 
+service_principals = {
+  pipeline = {
+    display_name       = "sp-my-pipeline"
+    github_repo        = "org/my-pipeline-repo"
+    github_environment = "dev"
+  }
+}
+
 # One entry per source; principals can be users, groups, or service principals
 landing_sources = {
   salesforce = ["group:sales-engineers"]

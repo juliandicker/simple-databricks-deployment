@@ -70,6 +70,16 @@ variable "demo_user_password" {
   description = "Initial password for the three demo users (Norma Redacta, Seymour Cleartext, Stewart Tagger). Must satisfy the tenant's password complexity policy."
 }
 
+variable "service_principals" {
+  description = "Service principals to create in Entra and register in Databricks. Each entry creates an app registration, service principal, optional GitHub OIDC federated credential, and Databricks workspace registration."
+  type = map(object({
+    display_name       = string
+    github_repo        = optional(string)        # "org/repo" — if set, creates a GitHub OIDC federated credential
+    github_environment = optional(string, "dev")
+  }))
+  default = {}
+}
+
 variable "landing_sources" {
   type        = map(list(string))
   default     = {}

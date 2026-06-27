@@ -57,7 +57,7 @@ resource "databricks_grants" "catalog" {
   }
 
   grant {
-    principal  = databricks_service_principal.pipeline.application_id
+    principal  = databricks_service_principal.this["pipeline"].application_id
     privileges = ["ALL PRIVILEGES"]
   }
 }
@@ -72,7 +72,7 @@ resource "databricks_grants" "bronze" {
   }
 
   grant {
-    principal  = databricks_service_principal.pipeline.application_id
+    principal  = databricks_service_principal.this["pipeline"].application_id
     privileges = ["ALL PRIVILEGES"]
   }
 }

@@ -19,6 +19,14 @@ groups = {
   }
 }
 
+service_principals = {
+  pipeline = {
+    display_name       = "sp-tfl-pipeline"
+    github_repo        = "juliandicker/tfl-disruption-data-pipeline"
+    github_environment = "dev"
+  }
+}
+
 group_members = {
   data_platform_admins = {
     service_principals = ["dbplat-simple-github-actions"]
