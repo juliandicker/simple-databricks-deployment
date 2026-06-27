@@ -77,13 +77,3 @@ resource "databricks_group" "data_platform_admins" {
   display_name = azuread_group.data_platform_admins.display_name
 }
 
-data "databricks_group" "account_admins" {
-  provider     = databricks.accounts
-  display_name = "admins"
-}
-
-resource "databricks_group_member" "data_platform_admins_account_admin" {
-  provider  = databricks.accounts
-  group_id  = data.databricks_group.account_admins.id
-  member_id = databricks_group.data_platform_admins.id
-}
