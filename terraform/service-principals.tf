@@ -42,21 +42,3 @@ resource "databricks_service_principal" "this" {
   depends_on = [databricks_metastore_assignment.this]
 }
 
-# ---------------------------------------------------------------------------
-# State migration — rename from singleton resources to for_each instances
-# ---------------------------------------------------------------------------
-
-moved {
-  from = azuread_application.pipeline
-  to   = azuread_application.this["pipeline"]
-}
-
-moved {
-  from = azuread_service_principal.pipeline
-  to   = azuread_service_principal.this["pipeline"]
-}
-
-moved {
-  from = databricks_service_principal.pipeline
-  to   = databricks_service_principal.this["pipeline"]
-}
