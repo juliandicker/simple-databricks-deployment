@@ -109,7 +109,7 @@ resource "databricks_metastore_assignment" "this" {
   workspace_id = azurerm_databricks_workspace.this.workspace_id
 }
 
-resource "databricks_workspace_assignment" "data_platform_admins" {
+resource "databricks_mws_permission_assignment" "data_platform_admins" {
   provider     = databricks.accounts
   workspace_id = azurerm_databricks_workspace.this.workspace_id
   principal_id = databricks_group.data_platform_admins.id
