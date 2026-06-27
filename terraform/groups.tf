@@ -74,3 +74,14 @@ resource "databricks_group_member" "data_platform_admins_julian" {
   group_id  = databricks_group.data_platform_admins.id
   member_id = data.databricks_user.platform_admin.id
 }
+
+data "databricks_group" "account_admins" {
+  provider     = databricks.accounts
+  display_name = "admins"
+}
+
+resource "databricks_group_member" "data_platform_admins_account_admin" {
+  provider  = databricks.accounts
+  group_id  = data.databricks_group.account_admins.id
+  member_id = databricks_group.data_platform_admins.id
+}
