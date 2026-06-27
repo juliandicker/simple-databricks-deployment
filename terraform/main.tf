@@ -97,7 +97,6 @@ resource "databricks_metastore" "this" {
   name          = "${var.prefix}-metastore"
   region        = var.location
   storage_root  = "abfss://metastore@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
-  owner         = databricks_group.data_platform_admins.display_name
   force_destroy = true
 
   depends_on = [azurerm_role_assignment.access_connector_storage]
