@@ -16,7 +16,7 @@ Azure Resource Group (dbplat-simple-rg)
 └── Databricks Workspace (Premium SKU)
 
 Unity Catalog (account-level)
-└── Metastore → assigned to workspace
+└── Metastore (owner: data-platform-admins) → assigned to workspace
     ├── Storage Credential (access connector managed identity)
     ├── External Location: landing
     ├── External Location: bronze
@@ -26,7 +26,41 @@ Unity Catalog (account-level)
     ├── Catalog: bronze   → schema: default
     ├── Catalog: silver   → schema: default
     └── Catalog: gold     → schema: default
+
+Entra ID security groups (synced to Databricks account via AIM)
+├── sg-dbplat-data-platform-admins  → Databricks: account admin, metastore owner, workspace ADMIN
+├── sg-dbplat-data-stewards         → Databricks: workspace USER
+├── sg-dbplat-pii-readers           → Databricks: workspace USER
+└── sg-dbplat-standard-readers      → Databricks: workspace USER
 ```
+
+### Catalog access
+
+Access follows a data mesh principle — all account users can browse every layer:
+
+| Catalog | Account users | Pipeline SP |
+|---|---|---|
+| `landing` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` |
+| `bronze` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` |
+| `silver` | `USE_CATALOG`, `USE_SCHEMA`, `SELECT` | `ALL PRIVILEGES` |
+| `gold` | `USE_CATALOG`, `USE_SCHEMA`, `SELECT` | `ALL PRIVILEGES` |
+
+Bronze is intentionally browse-only for account users — data access requires the pipeline SP. Silver and gold are read-accessible to all users.
+
+### Groups and access governance
+
+Four Entra security groups govern access. Terraform creates them and manages membership; Databricks mirrors them via AIM (Automatic Identity Management):
+
+| Entra group | Databricks role | Purpose |
+|---|---|---|
+| `sg-dbplat-data-platform-admins` | Account admin, metastore owner, workspace ADMIN | Platform operators |
+| `sg-dbplat-data-stewards` | Workspace USER | Data quality and ownership |
+| `sg-dbplat-pii-readers` | Workspace USER | Access to PII-tagged columns |
+| `sg-dbplat-standard-readers` | Workspace USER | Standard read access |
+
+The `data-platform-admins` group is seeded with the owner specified in the `OWNER` secret. Additional members are added in Entra and AIM propagates them to Databricks automatically.
+
+> **AIM and Terraform**: AIM can race against `terraform apply` when creating the Databricks mirror group for `data_platform_admins`. If an apply fails with "Group already exists", it means AIM synced the group before Terraform could create it. Delete the Databricks group from the account console, then re-run the apply immediately before AIM re-syncs.
 
 ### Landing zone
 

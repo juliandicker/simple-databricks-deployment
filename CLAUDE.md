@@ -38,14 +38,37 @@ There are no lint or test commands — this is pure Terraform/PowerShell with no
 | File | Responsibility |
 |---|---|
 | `providers.tf` | Two Databricks provider aliases: `databricks.accounts` (metastore/assignment) and `databricks.workspace` (all UC objects) |
-| `main.tf` | Azure resources: resource group, ADLS storage account + containers, Access Connector, workspace, landing lifecycle policy |
+| `main.tf` | Azure resources: resource group, ADLS storage account + containers, Access Connector, workspace, landing lifecycle policy, metastore, workspace permission assignments |
 | `catalogs.tf` | All Unity Catalog objects: external locations, catalogs, schemas, volumes, grants |
+| `groups.tf` | Entra security groups, Databricks account-level mirror groups, group memberships, workspace bindings |
+| `service-principals.tf` | Pipeline service principal |
+| `demo-users.tf` | Demo users (Norma Redacta, Seymour Cleartext, Stewart Tagger) and their Entra group memberships |
 | `variables.tf` | Input variables including `landing_sources` for per-source volume config |
 | `backend.tf` | Remote state in Azure Blob Storage — values here must match what `bootstrap.ps1` created |
 
 ### Two Databricks providers
 
-The `accounts` provider talks to `accounts.azuredatabricks.net` and can only be used for account-level resources (`databricks_metastore`, `databricks_metastore_assignment`). Everything else uses the `workspace` provider. Mixing them up causes confusing auth errors.
+The `accounts` provider talks to `accounts.azuredatabricks.net` and can only be used for account-level resources (`databricks_metastore`, `databricks_metastore_assignment`, `databricks_group`, `databricks_group_role`, `databricks_mws_permission_assignment`). Everything else uses the `workspace` provider. Mixing them up causes confusing auth errors.
+
+Key provider-specific resources:
+- **`databricks_mws_permission_assignment`** (accounts provider) — assigns a group to a workspace with `USER` or `ADMIN` permissions. This is the correct resource; `databricks_workspace_assignment` does not exist in the provider.
+- **`databricks_group_role`** (accounts provider) — assigns a role such as `"account_admin"` to a group.
+- **`databricks_group`** (accounts provider) — creates an account-level group. Set `display_name` to match the Entra group so AIM can sync members automatically.
+
+### Groups and access governance
+
+Four Entra security groups are managed in `groups.tf`. Each has a Databricks account-level mirror group with the same display name; AIM (Automatic Identity Management) syncs membership from Entra to Databricks.
+
+| Entra group | Databricks privileges |
+|---|---|
+| `sg-dbplat-data-platform-admins` | `account_admin` role, metastore `owner`, workspace `ADMIN` |
+| `sg-dbplat-data-stewards` | Workspace `USER` |
+| `sg-dbplat-pii-readers` | Workspace `USER` |
+| `sg-dbplat-standard-readers` | Workspace `USER` |
+
+The `data-platform-admins` group is seeded with `var.owner` (the `OWNER` GitHub secret — kept secret to avoid committing a personal email to a public repo).
+
+**AIM race condition**: When Terraform creates the Entra group, AIM can sync it to Databricks before Terraform creates the `databricks_group` resource, causing an "already exists" error. Fix: delete the Databricks group from the account console, then re-run `terraform apply` immediately before AIM re-syncs. Once Terraform owns the group in state this conflict does not recur.
 
 ### Landing zone pattern
 
@@ -58,7 +81,17 @@ Landing is a raw file drop zone, not a Delta catalog. Structure:
 
 ### Bronze/silver/gold catalogs
 
-Each layer in `local.layers` gets: an ADLS container, a Databricks external location, a catalog (with `storage_root` pointing at its container), a `default` schema, and `USE_CATALOG`/`USE_SCHEMA`/`SELECT` granted to `account users`.
+Each layer in `local.layers` gets: an ADLS container, a Databricks external location, a catalog (with `storage_root` pointing at its container), and a `default` schema.
+
+Catalog grants follow a data mesh principle — all account users can browse every layer:
+
+| Catalog | Account users | Pipeline SP |
+|---|---|---|
+| `bronze` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` |
+| `silver` | `USE_CATALOG`, `USE_SCHEMA`, `SELECT` | `ALL PRIVILEGES` |
+| `gold` | `USE_CATALOG`, `USE_SCHEMA`, `SELECT` | `ALL PRIVILEGES` |
+
+Bronze is browse-only for account users — `SELECT` is withheld to enforce pipeline-only data ingestion at the raw layer.
 
 ### State file location
 
