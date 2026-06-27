@@ -99,7 +99,19 @@ resource "databricks_metastore" "this" {
   storage_root  = "abfss://metastore@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
   force_destroy = true
 
-  depends_on = [azurerm_role_assignment.access_connector_storage]
+  # All Entra group memberships must be complete before any Databricks resource
+  # is created. Everything Databricks chains from the metastore, so this single
+  # depends_on enforces the Entra-first ordering across the entire apply.
+  # Prevents races where Terraform recreates a Databricks group and wipes members
+  # that AIM had synced from Entra.
+  depends_on = [
+    azurerm_role_assignment.access_connector_storage,
+    azuread_group_member.data_platform_admins_julian,
+    azuread_group_member.data_platform_admins_github_actions,
+    azuread_group_member.norma_standard_readers,
+    azuread_group_member.seymour_pii_readers,
+    azuread_group_member.stewart_data_stewards,
+  ]
 }
 
 resource "databricks_metastore_assignment" "this" {
