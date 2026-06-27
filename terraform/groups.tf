@@ -67,9 +67,18 @@ data "azuread_user" "platform_admin" {
   user_principal_name = var.owner
 }
 
+data "azuread_service_principal" "github_actions" {
+  display_name = "dbplat-simple-github-actions"
+}
+
 resource "azuread_group_member" "data_platform_admins_julian" {
   group_object_id  = azuread_group.data_platform_admins.object_id
   member_object_id = data.azuread_user.platform_admin.object_id
+}
+
+resource "azuread_group_member" "data_platform_admins_github_actions" {
+  group_object_id  = azuread_group.data_platform_admins.object_id
+  member_object_id = data.azuread_service_principal.github_actions.object_id
 }
 
 resource "databricks_group" "data_platform_admins" {
