@@ -36,7 +36,7 @@ resource "azuread_group" "data_stewards" {
 # above via SCIM provisioning.
 #
 # To enable SCIM: Entra ID -> Enterprise Applications -> Azure Databricks ->
-# Provisioning -> enable automatic provisioning, scope to the three groups above.
+# Provisioning -> enable automatic provisioning, scope to the four groups above.
 
 resource "databricks_group" "standard_readers" {
   provider     = databricks.accounts
@@ -54,25 +54,27 @@ resource "databricks_group" "data_stewards" {
 }
 
 # ---------------------------------------------------------------------------
-# Data platform admins — Databricks account-level admin group
+# Data platform admins — Entra group + mirrored Databricks account-level group
 # ---------------------------------------------------------------------------
-# Membership is managed explicitly here; no Entra group or SCIM needed for
-# a small, stable set of admins.
 
-data "databricks_user" "platform_admin" {
-  provider  = databricks.accounts
-  user_name = var.owner
+resource "azuread_group" "data_platform_admins" {
+  display_name     = "sg-dbplat-data-platform-admins"
+  mail_enabled     = false
+  security_enabled = true
+}
+
+data "azuread_user" "platform_admin" {
+  user_principal_name = var.owner
+}
+
+resource "azuread_group_member" "data_platform_admins_julian" {
+  group_object_id  = azuread_group.data_platform_admins.object_id
+  member_object_id = data.azuread_user.platform_admin.object_id
 }
 
 resource "databricks_group" "data_platform_admins" {
   provider     = databricks.accounts
-  display_name = "data-platform-admins"
-}
-
-resource "databricks_group_member" "data_platform_admins_julian" {
-  provider  = databricks.accounts
-  group_id  = databricks_group.data_platform_admins.id
-  member_id = data.databricks_user.platform_admin.id
+  display_name = azuread_group.data_platform_admins.display_name
 }
 
 data "databricks_group" "account_admins" {
