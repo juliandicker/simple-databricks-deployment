@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo does
 
-Deploys a minimum-viable Databricks lakehouse on Azure via Terraform: one Premium workspace, ADLS Gen2 storage, Unity Catalog metastore, and a landing zone backed by Unity Catalog external volumes. Auth throughout is OIDC — no stored secrets anywhere.
+Deploys a minimum-viable Databricks lakehouse on Azure via Terraform: one Trial-tier workspace, ADLS Gen2 storage, Unity Catalog metastore, and a landing zone backed by Unity Catalog external volumes. Auth throughout is OIDC — no stored secrets anywhere.
 
 ## Common commands
 
@@ -138,6 +138,12 @@ After every `terraform apply`, the workflow pushes two outputs to `juliandicker/
 This uses a GitHub App (`dbplat-deployment-bot`) instead of a PAT — no expiry, scoped only to the target repo with `secrets:write`. Two secrets are required in the `dev` environment:
 - `APP_ID` — numeric GitHub App ID
 - `APP_PRIVATE_KEY` — app private key in **PKCS#8** format (`-----BEGIN PRIVATE KEY-----`). GitHub generates keys in PKCS#1; convert before storing: `openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in original.pem | gh secret set APP_PRIVATE_KEY --env dev`
+
+### Workspace SKU: Trial tier
+
+The workspace uses `sku = "trial"` in `main.tf`. Trial gives Premium features (including Unity Catalog) with no DBU charges for 14 days per workspace. This suits the deploy-test-destroy cycle used here — each fresh `terraform apply` starts a new 14-day trial.
+
+After 14 days Azure will prompt to upgrade to Premium. If costs appear unexpectedly, check whether a SQL warehouse or cluster is running in the workspace UI; Terraform does not create any compute resources, but Unity Catalog system operations can spin up background compute automatically.
 
 ### Key constraint: one metastore per region
 
