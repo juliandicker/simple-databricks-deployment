@@ -146,10 +146,10 @@ resource "databricks_grants" "admin" {
   }
 }
 
-# NOTE: ASSIGN on class.* system governed tags (class.name, class.email_address,
-# class.date_of_birth, class.location) must be granted to the pipeline SP manually.
-# The databricks_grants resource does not yet support governed_tag as a securable type.
-# Grant once in: Catalog Explorer → Govern → Governed Tags → <tag> → Permissions.
+# class.* tag bootstrapping is handled by the "Bootstrap class.* tags on PII columns"
+# CI workflow step using the Databricks CLI (entity-tag-assignments create), running as
+# the account-admin GitHub Actions SP. Runs after every terraform apply; idempotent.
+# No ASSIGN grant to the pipeline SP is needed for this path.
 
 # USE_CATALOG + USE_SCHEMA lets principals navigate to the catalog without granting data access
 resource "databricks_grants" "landing_catalog" {

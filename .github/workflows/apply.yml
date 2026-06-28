@@ -61,27 +61,37 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           repositories: tfl-disruption-data-pipeline
 
-      - name: Grant ASSIGN on class.* governed tags to pipeline SP
-        env:
-          DATABRICKS_ACCOUNT_ID: ${{ secrets.DATABRICKS_ACCOUNT_ID }}
+      - name: Bootstrap class.* tags on PII columns
         run: |
           WORKSPACE_URL=$(terraform output -raw workspace_url)
-          PIPELINE_SP=$(terraform output -raw pipeline_sp_application_id)
           TOKEN=$(az account get-access-token \
             --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
             --query accessToken -o tsv)
 
-          ACCOUNTS="https://accounts.azuredatabricks.net/api/2.0/accounts/${DATABRICKS_ACCOUNT_ID}"
-          RESOURCE="accounts%2F${DATABRICKS_ACCOUNT_ID}%2FtagPolicies%2Fclass.name"
+          # Install Databricks CLI
+          curl -fsSL https://raw.githubusercontent.com/databricks/cli/main/install.sh \
+            | sh >/dev/null 2>&1
 
-          echo "--- Tag policies list ---"
-          curl -sL "${ACCOUNTS}/tag-policies" \
-            -H "Authorization: Bearer ${TOKEN}" | head -c 3000 || true
+          WS_URL="https://${WORKSPACE_URL#https://}"
+          export DATABRICKS_HOST="${WS_URL}"
+          export DATABRICKS_TOKEN="${TOKEN}"
 
-          echo ""
-          echo "--- IAM policy for class.name ---"
-          curl -sL "${ACCOUNTS}/access-control/rule-sets/${RESOURCE}:getIamPolicy" \
-            -H "Authorization: Bearer ${TOKEN}" | head -c 3000 || true
+          # Assign class.* tags to known PII columns as account admin.
+          # Runs after every terraform apply; fails gracefully if pipeline
+          # hasn't populated the tables yet (first deploy) — idempotent thereafter.
+          databricks entity-tag-assignments create \
+            "silver.tfl.customer_journeys.full_name" "class.name" "columns" || true
+          databricks entity-tag-assignments create \
+            "silver.tfl.customer_journeys.email" "class.email_address" "columns" || true
+          databricks entity-tag-assignments create \
+            "silver.tfl.customer_journeys.date_of_birth" "class.date_of_birth" "columns" || true
+          databricks entity-tag-assignments create \
+            "silver.tfl.customer_journeys.home_postcode" "class.location" "columns" || true
+          databricks entity-tag-assignments create \
+            "gold.tfl.notification_targets.full_name" "class.name" "columns" || true
+          databricks entity-tag-assignments create \
+            "gold.tfl.notification_targets.email" "class.email_address" "columns" || true
+          echo "Tag bootstrapping done (errors above expected if pipeline hasn't run yet)"
 
       - name: Push outputs to pipeline repo secrets
         env:
