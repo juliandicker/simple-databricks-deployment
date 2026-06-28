@@ -61,6 +61,22 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           repositories: tfl-disruption-data-pipeline
 
+      - name: Grant ASSIGN on class.* governed tags to pipeline SP
+        run: |
+          WORKSPACE_URL=$(terraform output -raw workspace_url)
+          PIPELINE_SP=$(terraform output -raw pipeline_sp_application_id)
+          TOKEN=$(az account get-access-token \
+            --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
+            --query accessToken -o tsv)
+
+          for TAG in class.name class.email_address class.date_of_birth class.location; do
+            echo "Granting ASSIGN on governed tag ${TAG} to pipeline SP"
+            curl -sf -X PATCH "${WORKSPACE_URL}/api/2.1/unity-catalog/permissions/governed_tag/${TAG}" \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"changes\":[{\"principal\":\"${PIPELINE_SP}\",\"add\":[\"ASSIGN\"]}]}"
+          done
+
       - name: Push outputs to pipeline repo secrets
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
