@@ -71,29 +71,23 @@ jobs:
             --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
             --query accessToken -o tsv)
 
-          # 1. List tag policies to find IDs for class.* tags
-          echo "--- List tag policies ---"
-          curl -sL -X GET \
-            "https://accounts.azuredatabricks.net/api/2.0/accounts/${DATABRICKS_ACCOUNT_ID}/tag-policies" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -w "\nHTTP %{http_code}\n" || true
+          ACCOUNTS="https://accounts.azuredatabricks.net/api/2.0/accounts/${DATABRICKS_ACCOUNT_ID}"
 
-          # 2. getIamPolicy on the tagPolicies resource
+          # 1. List tag policies — show response body to see tag policy IDs
+          echo "--- Tag policies list ---"
+          curl -sL "${ACCOUNTS}/tag-policies" \
+            -H "Authorization: Bearer ${TOKEN}" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+for p in d.get('policies', d.get('tag_policies', [])):
+    print(p.get('id','?'), p.get('name','?'), p.get('tag_key','?'))
+" || true
+
+          # 2. Show current IAM policy for class.name
           RESOURCE="accounts%2F${DATABRICKS_ACCOUNT_ID}%2FtagPolicies%2Fclass.name"
-          echo "--- getIamPolicy ---"
-          curl -sL -X GET \
-            "https://accounts.azuredatabricks.net/api/2.0/accounts/${DATABRICKS_ACCOUNT_ID}/access-control/rule-sets/${RESOURCE}:getIamPolicy" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -w "\nHTTP %{http_code}\n" || true
-
-          # 3. SQL GRANT via workspace API
-          echo "--- SQL GRANT probe ---"
-          curl -s -X POST \
-            "${WORKSPACE_URL}/api/2.0/sql/statements" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"statement\":\"GRANT ASSIGN ON GOVERNED TAG \`class.name\` TO \`${PIPELINE_SP}\`\",\"wait_timeout\":\"10s\"}" \
-            -w "\nHTTP %{http_code}\n" || true
+          echo "--- Current IAM policy for class.name ---"
+          curl -sL "${ACCOUNTS}/access-control/rule-sets/${RESOURCE}:getIamPolicy" \
+            -H "Authorization: Bearer ${TOKEN}" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin), indent=2))" || true
 
       - name: Push outputs to pipeline repo secrets
         env:
