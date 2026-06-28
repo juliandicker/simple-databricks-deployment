@@ -60,6 +60,11 @@ resource "databricks_grants" "catalog" {
     principal  = databricks_service_principal.this["pipeline"].application_id
     privileges = ["ALL PRIVILEGES"]
   }
+
+  grant {
+    principal  = databricks_group.this["data-platform-admins"].display_name
+    privileges = ["MANAGE"]
+  }
 }
 
 resource "databricks_grants" "bronze" {
@@ -74,6 +79,11 @@ resource "databricks_grants" "bronze" {
   grant {
     principal  = databricks_service_principal.this["pipeline"].application_id
     privileges = ["ALL PRIVILEGES"]
+  }
+
+  grant {
+    principal  = databricks_group.this["data-platform-admins"].display_name
+    privileges = ["MANAGE"]
   }
 }
 
@@ -123,6 +133,11 @@ resource "databricks_grants" "landing_catalog" {
   grant {
     principal  = "account users"
     privileges = ["USE_CATALOG", "USE_SCHEMA"]
+  }
+
+  grant {
+    principal  = databricks_group.this["data-platform-admins"].display_name
+    privileges = ["MANAGE"]
   }
 }
 
