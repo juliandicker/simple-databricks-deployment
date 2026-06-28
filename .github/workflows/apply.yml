@@ -98,9 +98,10 @@ jobs:
           for TAG in class.name class.email_address class.date_of_birth class.location; do
             RESOURCE="accounts/${DATABRICKS_ACCOUNT_ID}/tagPolicies/${TAG}"
             echo "--- ${TAG} ---"
-            CURRENT=$(databricks account access-control get-rule-set "${RESOURCE}" 2>&1)
+            CURRENT=$(databricks account access-control get-rule-set "${RESOURCE}" 2>&1) || true
             echo "${CURRENT}"
             ETAG=$(echo "${CURRENT}" | grep -o '"etag":"[^"]*"' | cut -d'"' -f4)
+            echo "ETag: '${ETAG}'"
             if [ -n "${ETAG}" ]; then
               databricks account access-control update-rule-set "${RESOURCE}" "${ETAG}" \
                 --json "{\"rule_set\":{\"grant_rules\":[{\"role\":\"roles/databricks.tagPolicyAssign\",\"principals\":[\"servicePrincipals/${PIPELINE_SP}\"]}]}}" \
