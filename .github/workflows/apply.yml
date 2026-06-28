@@ -68,30 +68,35 @@ jobs:
             --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
             --query accessToken -o tsv)
 
-          # Install Databricks CLI
-          curl -fsSL https://raw.githubusercontent.com/databricks/cli/main/install.sh \
-            | sh >/dev/null 2>&1
+          # Install Databricks CLI from GitHub releases
+          CLI_VER=$(curl -s "https://api.github.com/repos/databricks/cli/releases/latest" \
+            | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+          curl -fsSL \
+            "https://github.com/databricks/cli/releases/download/${CLI_VER}/databricks_linux_amd64.zip" \
+            -o /tmp/db.zip
+          unzip -p /tmp/db.zip databricks > /usr/local/bin/databricks
+          chmod +x /usr/local/bin/databricks
+          echo "Databricks CLI: $(databricks --version)"
 
           WS_URL="https://${WORKSPACE_URL#https://}"
           export DATABRICKS_HOST="${WS_URL}"
           export DATABRICKS_TOKEN="${TOKEN}"
 
           # Assign class.* tags to known PII columns as account admin.
-          # Runs after every terraform apply; fails gracefully if pipeline
-          # hasn't populated the tables yet (first deploy) — idempotent thereafter.
+          # Fails gracefully if tables don't exist yet (first deploy — idempotent).
           databricks entity-tag-assignments create \
-            "silver.tfl.customer_journeys.full_name" "class.name" "columns" || true
+            "silver.tfl.customer_journeys.full_name" "class.name" "columns" 2>&1 || true
           databricks entity-tag-assignments create \
-            "silver.tfl.customer_journeys.email" "class.email_address" "columns" || true
+            "silver.tfl.customer_journeys.email" "class.email_address" "columns" 2>&1 || true
           databricks entity-tag-assignments create \
-            "silver.tfl.customer_journeys.date_of_birth" "class.date_of_birth" "columns" || true
+            "silver.tfl.customer_journeys.date_of_birth" "class.date_of_birth" "columns" 2>&1 || true
           databricks entity-tag-assignments create \
-            "silver.tfl.customer_journeys.home_postcode" "class.location" "columns" || true
+            "silver.tfl.customer_journeys.home_postcode" "class.location" "columns" 2>&1 || true
           databricks entity-tag-assignments create \
-            "gold.tfl.notification_targets.full_name" "class.name" "columns" || true
+            "gold.tfl.notification_targets.full_name" "class.name" "columns" 2>&1 || true
           databricks entity-tag-assignments create \
-            "gold.tfl.notification_targets.email" "class.email_address" "columns" || true
-          echo "Tag bootstrapping done (errors above expected if pipeline hasn't run yet)"
+            "gold.tfl.notification_targets.email" "class.email_address" "columns" 2>&1 || true
+          echo "Tag bootstrapping done"
 
       - name: Push outputs to pipeline repo secrets
         env:
