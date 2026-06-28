@@ -146,10 +146,11 @@ resource "databricks_grants" "admin" {
   }
 }
 
-# class.* tag bootstrapping is handled by the "Bootstrap class.* tags on PII columns"
-# CI workflow step using the Databricks CLI (entity-tag-assignments create), running as
-# the account-admin GitHub Actions SP. Runs after every terraform apply; idempotent.
-# No ASSIGN grant to the pipeline SP is needed for this path.
+# Data Classification is enabled on silver and gold catalogs by the
+# "Enable Data Classification" CI step in apply.yml. The engine auto-tags
+# PII columns with class.* system governed tags within ~24 h of scanning.
+# Column-level tag bootstrapping (for the window before the engine runs)
+# is handled by the tfl pipeline's deploy workflow.
 
 # USE_CATALOG + USE_SCHEMA lets principals navigate to the catalog without granting data access
 resource "databricks_grants" "landing_catalog" {

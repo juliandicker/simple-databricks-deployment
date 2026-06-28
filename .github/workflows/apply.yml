@@ -61,45 +61,30 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           repositories: tfl-disruption-data-pipeline
 
-      - name: Bootstrap class.* tags on PII columns
+      - name: Enable Data Classification on silver and gold catalogs
         run: |
           WORKSPACE_URL=$(terraform output -raw workspace_url)
           TOKEN=$(az account get-access-token \
             --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
             --query accessToken -o tsv)
 
-          # Install Databricks CLI — find asset URL from GitHub releases API
           CLI_URL=$(curl -s \
             "https://api.github.com/repos/databricks/cli/releases/latest" \
             | grep '"browser_download_url"' \
             | grep 'linux_amd64' | grep '\.zip' \
             | cut -d'"' -f4 | head -1)
-          echo "CLI asset: ${CLI_URL}"
           curl -fsSL "${CLI_URL}" -o /tmp/db.zip
           unzip -j /tmp/db.zip -d /usr/local/bin/ >/dev/null 2>&1
           chmod +x /usr/local/bin/databricks
-          echo "Databricks CLI: $(databricks --version)"
 
           WS_URL="https://${WORKSPACE_URL#https://}"
           export DATABRICKS_HOST="${WS_URL}"
           export DATABRICKS_TOKEN="${TOKEN}"
 
-          # Assign class.* tags to known PII columns as account admin.
-          # "already exists" errors on subsequent applies are expected and harmless.
-          # Fails gracefully if tables don't exist yet (first deploy — idempotent).
-          databricks entity-tag-assignments create \
-            "silver.tfl.customer_journeys.full_name" "class.name" "columns" || true
-          databricks entity-tag-assignments create \
-            "silver.tfl.customer_journeys.email" "class.email_address" "columns" || true
-          databricks entity-tag-assignments create \
-            "silver.tfl.customer_journeys.date_of_birth" "class.date_of_birth" "columns" || true
-          databricks entity-tag-assignments create \
-            "silver.tfl.customer_journeys.home_postcode" "class.location" "columns" || true
-          databricks entity-tag-assignments create \
-            "gold.tfl.notification_targets.full_name" "class.name" "columns" || true
-          databricks entity-tag-assignments create \
-            "gold.tfl.notification_targets.email" "class.email_address" "columns" || true
-          echo "class.* tag bootstrapping complete"
+          # Idempotent: "already exists" on re-runs is expected and harmless.
+          databricks data-classification create-catalog-config "catalogs/silver" 2>&1 || true
+          databricks data-classification create-catalog-config "catalogs/gold" 2>&1 || true
+          echo "Data Classification configured on silver and gold"
 
       - name: Push outputs to pipeline repo secrets
         env:
