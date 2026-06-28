@@ -113,6 +113,39 @@ resource "databricks_volume" "landing_sources" {
   depends_on = [databricks_external_location.landing]
 }
 
+# Admin catalog — shared governance infrastructure (masking UDFs).
+# Managed catalog: no ADLS container or external location needed.
+resource "databricks_catalog" "admin" {
+  provider      = databricks.workspace
+  name          = "admin"
+  comment       = "Shared governance infrastructure — masking UDFs referenced by ABAC policies across data catalogs"
+  force_destroy = true
+
+  depends_on = [databricks_metastore_assignment.this]
+}
+
+resource "databricks_schema" "admin_shared" {
+  provider      = databricks.workspace
+  catalog_name  = databricks_catalog.admin.name
+  name          = "shared"
+  force_destroy = true
+}
+
+resource "databricks_grants" "admin" {
+  provider = databricks.workspace
+  catalog  = databricks_catalog.admin.name
+
+  grant {
+    principal  = databricks_service_principal.this["pipeline"].application_id
+    privileges = ["ALL PRIVILEGES", "MANAGE"]
+  }
+
+  grant {
+    principal  = databricks_group.this["data_platform_admins"].display_name
+    privileges = ["ALL PRIVILEGES", "MANAGE"]
+  }
+}
+
 # NOTE: ASSIGN on class.* system governed tags (class.name, class.email_address,
 # class.date_of_birth, class.location) must be granted to the pipeline SP manually.
 # The databricks_grants resource does not yet support governed_tag as a securable type.
