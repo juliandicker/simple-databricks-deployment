@@ -113,26 +113,10 @@ resource "databricks_volume" "landing_sources" {
   depends_on = [databricks_external_location.landing]
 }
 
-# Grant pipeline SP ASSIGN on the class.* system governed tags used in ABAC policies.
-# Required for setup_abac.py to bootstrap column tags before Data Classification's
-# async scan runs. ALL PRIVILEGES on the catalog does not cover governed tag permissions
-# — they are an account-level permission domain managed separately.
-resource "databricks_grants" "classification_tags" {
-  provider = databricks.workspace
-
-  for_each     = toset([
-    "class.name",
-    "class.email_address",
-    "class.date_of_birth",
-    "class.location",
-  ])
-  governed_tag = each.key
-
-  grant {
-    principal  = databricks_service_principal.this["pipeline"].application_id
-    privileges = ["ASSIGN"]
-  }
-}
+# NOTE: ASSIGN on class.* system governed tags (class.name, class.email_address,
+# class.date_of_birth, class.location) must be granted to the pipeline SP manually.
+# The databricks_grants resource does not yet support governed_tag as a securable type.
+# Grant once in: Catalog Explorer → Govern → Governed Tags → <tag> → Permissions.
 
 # USE_CATALOG + USE_SCHEMA lets principals navigate to the catalog without granting data access
 resource "databricks_grants" "landing_catalog" {
