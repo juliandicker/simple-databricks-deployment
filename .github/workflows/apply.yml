@@ -72,22 +72,16 @@ jobs:
             --query accessToken -o tsv)
 
           ACCOUNTS="https://accounts.azuredatabricks.net/api/2.0/accounts/${DATABRICKS_ACCOUNT_ID}"
+          RESOURCE="accounts%2F${DATABRICKS_ACCOUNT_ID}%2FtagPolicies%2Fclass.name"
 
-          # 1. List tag policies — show response body to see tag policy IDs
           echo "--- Tag policies list ---"
           curl -sL "${ACCOUNTS}/tag-policies" \
-            -H "Authorization: Bearer ${TOKEN}" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-for p in d.get('policies', d.get('tag_policies', [])):
-    print(p.get('id','?'), p.get('name','?'), p.get('tag_key','?'))
-" || true
+            -H "Authorization: Bearer ${TOKEN}" | head -c 3000 || true
 
-          # 2. Show current IAM policy for class.name
-          RESOURCE="accounts%2F${DATABRICKS_ACCOUNT_ID}%2FtagPolicies%2Fclass.name"
-          echo "--- Current IAM policy for class.name ---"
+          echo ""
+          echo "--- IAM policy for class.name ---"
           curl -sL "${ACCOUNTS}/access-control/rule-sets/${RESOURCE}:getIamPolicy" \
-            -H "Authorization: Bearer ${TOKEN}" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin), indent=2))" || true
+            -H "Authorization: Bearer ${TOKEN}" | head -c 3000 || true
 
       - name: Push outputs to pipeline repo secrets
         env:
