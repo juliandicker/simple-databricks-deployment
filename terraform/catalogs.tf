@@ -62,7 +62,7 @@ resource "databricks_grants" "catalog" {
   }
 
   grant {
-    principal  = databricks_group.this["data-platform-admins"].display_name
+    principal  = databricks_group.this["data_platform_admins"].display_name
     privileges = ["MANAGE"]
   }
 }
@@ -82,7 +82,7 @@ resource "databricks_grants" "bronze" {
   }
 
   grant {
-    principal  = databricks_group.this["data-platform-admins"].display_name
+    principal  = databricks_group.this["data_platform_admins"].display_name
     privileges = ["MANAGE"]
   }
 }
@@ -136,7 +136,7 @@ resource "databricks_grants" "landing_catalog" {
   }
 
   grant {
-    principal  = databricks_group.this["data-platform-admins"].display_name
+    principal  = databricks_group.this["data_platform_admins"].display_name
     privileges = ["MANAGE"]
   }
 }
