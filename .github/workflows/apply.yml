@@ -61,9 +61,12 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           repositories: tfl-disruption-data-pipeline
 
-      - name: Enable Data Classification on silver and gold catalogs
+      - name: Configure Data Classification and grant ASSIGN on class.* tags
+        env:
+          DATABRICKS_ACCOUNT_ID: ${{ secrets.DATABRICKS_ACCOUNT_ID }}
         run: |
           WORKSPACE_URL=$(terraform output -raw workspace_url)
+          PIPELINE_SP=$(terraform output -raw pipeline_sp_application_id)
           TOKEN=$(az account get-access-token \
             --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
             --query accessToken -o tsv)
@@ -81,10 +84,30 @@ jobs:
           export DATABRICKS_HOST="${WS_URL}"
           export DATABRICKS_TOKEN="${TOKEN}"
 
-          # Idempotent: "already exists" on re-runs is expected and harmless.
+          # 1. Enable Data Classification on silver and gold (workspace-level).
+          # "already exists" on re-runs is expected and harmless.
           databricks data-classification create-catalog-config "catalogs/silver" 2>&1 || true
           databricks data-classification create-catalog-config "catalogs/gold" 2>&1 || true
           echo "Data Classification configured on silver and gold"
+
+          # 2. Grant ASSIGN on class.* governed tags to the pipeline SP.
+          # Switches to account-level CLI auth (no TOKEN, uses Azure CLI session).
+          unset DATABRICKS_TOKEN
+          export DATABRICKS_HOST="https://accounts.azuredatabricks.net"
+
+          for TAG in class.name class.email_address class.date_of_birth class.location; do
+            RESOURCE="accounts/${DATABRICKS_ACCOUNT_ID}/tagPolicies/${TAG}"
+            echo "--- ${TAG} ---"
+            CURRENT=$(databricks account access-control get-rule-set "${RESOURCE}" 2>&1)
+            echo "${CURRENT}"
+            ETAG=$(echo "${CURRENT}" | grep -o '"etag":"[^"]*"' | cut -d'"' -f4)
+            if [ -n "${ETAG}" ]; then
+              databricks account access-control update-rule-set "${RESOURCE}" "${ETAG}" \
+                --json "{\"rule_set\":{\"grant_rules\":[{\"role\":\"roles/databricks.tagPolicyAssign\",\"principals\":[\"servicePrincipals/${PIPELINE_SP}\"]}]}}" \
+                2>&1 || true
+            fi
+          done
+          echo "ASSIGN grant step complete"
 
       - name: Push outputs to pipeline repo secrets
         env:
