@@ -45,7 +45,9 @@ Access follows a data mesh principle — all account users can browse every laye
 | `silver` | `USE_CATALOG`, `USE_SCHEMA`, `SELECT` | `ALL PRIVILEGES` |
 | `gold` | `USE_CATALOG`, `USE_SCHEMA`, `SELECT` | `ALL PRIVILEGES` |
 
-Bronze is intentionally browse-only for account users — data access requires the pipeline SP. Silver and gold are read-accessible to all users.
+Bronze is intentionally browse-only for account users — data access requires the pipeline SP. Silver and gold are read-accessible to all users; ABAC column masking in the pipeline repo controls what PII they see.
+
+> **One-time governed tag grant**: the pipeline repo's `governance-setup` job bootstraps `class.*` Data Classification tags onto PII columns at run time. This requires `ASSIGN` on `class.name`, `class.email_address`, `class.date_of_birth`, and `class.location` to be granted to the pipeline SP. The Databricks Terraform provider does not yet support governed tag grants, so this must be done once manually: Catalog Explorer → Govern → Governed Tags → each tag → Permissions → Add `sp-tfl-pipeline` with `ASSIGN`.
 
 ### Groups and access governance
 

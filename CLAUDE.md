@@ -93,6 +93,8 @@ Catalog grants follow a data mesh principle — all account users can browse eve
 
 Bronze is browse-only for account users — `SELECT` is withheld to enforce pipeline-only data ingestion at the raw layer.
 
+**Governed tag grants**: `databricks_grants` does not support `governed_tag` as a securable type in the current provider (`~> 1.60`). The pipeline SP needs `ASSIGN` on `class.name`, `class.email_address`, `class.date_of_birth`, and `class.location` (Data Classification system tags) for the `governance-setup` job's tag bootstrapping step. Grant this once manually in Catalog Explorer → Govern → Governed Tags → each tag → Permissions. A comment in `catalogs.tf` marks the gap. If the provider adds `governed_tag` support in a future version, move this grant into Terraform there.
+
 ### State file location
 
 `dbplat-simple-tfstate-rg` / `dbplatsimplestate` / container `tfstate` / key `simple-databricks.tfstate`. This is outside the main resource group and is not managed by Terraform itself — it must be created by `bootstrap.ps1` before `terraform init`.
