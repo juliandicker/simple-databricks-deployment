@@ -68,13 +68,15 @@ jobs:
             --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
             --query accessToken -o tsv)
 
-          # Install Databricks CLI from GitHub releases
-          CLI_VER=$(curl -s "https://api.github.com/repos/databricks/cli/releases/latest" \
-            | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-          curl -fsSL \
-            "https://github.com/databricks/cli/releases/download/${CLI_VER}/databricks_linux_amd64.zip" \
-            -o /tmp/db.zip
-          unzip -p /tmp/db.zip databricks > /usr/local/bin/databricks
+          # Install Databricks CLI — find asset URL from GitHub releases API
+          CLI_URL=$(curl -s \
+            "https://api.github.com/repos/databricks/cli/releases/latest" \
+            | grep '"browser_download_url"' \
+            | grep 'linux_amd64' | grep '\.zip' \
+            | cut -d'"' -f4 | head -1)
+          echo "CLI asset: ${CLI_URL}"
+          curl -fsSL "${CLI_URL}" -o /tmp/db.zip
+          unzip -j /tmp/db.zip -d /usr/local/bin/ >/dev/null 2>&1
           chmod +x /usr/local/bin/databricks
           echo "Databricks CLI: $(databricks --version)"
 
