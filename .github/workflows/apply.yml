@@ -85,26 +85,21 @@ jobs:
           export DATABRICKS_TOKEN="${TOKEN}"
 
           # Assign class.* tags to known PII columns as account admin.
+          # "already exists" errors on subsequent applies are expected and harmless.
           # Fails gracefully if tables don't exist yet (first deploy — idempotent).
-          echo "silver.tfl.customer_journeys.full_name → class.name"
           databricks entity-tag-assignments create \
             "silver.tfl.customer_journeys.full_name" "class.name" "columns" || true
-          echo "silver.tfl.customer_journeys.email → class.email_address"
           databricks entity-tag-assignments create \
             "silver.tfl.customer_journeys.email" "class.email_address" "columns" || true
-          echo "silver.tfl.customer_journeys.date_of_birth → class.date_of_birth"
           databricks entity-tag-assignments create \
             "silver.tfl.customer_journeys.date_of_birth" "class.date_of_birth" "columns" || true
-          echo "silver.tfl.customer_journeys.home_postcode → class.location"
           databricks entity-tag-assignments create \
             "silver.tfl.customer_journeys.home_postcode" "class.location" "columns" || true
-          echo "gold.tfl.notification_targets.full_name → class.name"
           databricks entity-tag-assignments create \
             "gold.tfl.notification_targets.full_name" "class.name" "columns" || true
-          echo "gold.tfl.notification_targets.email → class.email_address"
           databricks entity-tag-assignments create \
             "gold.tfl.notification_targets.email" "class.email_address" "columns" || true
-          echo "Tag bootstrapping done"
+          echo "class.* tag bootstrapping complete"
 
       - name: Push outputs to pipeline repo secrets
         env:
