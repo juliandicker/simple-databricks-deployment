@@ -71,19 +71,28 @@ jobs:
             --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
             --query accessToken -o tsv)
 
-          # Accounts API: follow redirect (-L) and show response + final URL
-          echo "--- Accounts UC API (follow redirect) ---"
-          curl -sL -X PATCH \
-            "https://accounts.azuredatabricks.net/api/2.1/unity-catalog/permissions/governed_tag/class.name" \
+          # 1. List tag policies to find IDs for class.* tags
+          echo "--- List tag policies ---"
+          curl -sL -X GET \
+            "https://accounts.azuredatabricks.net/api/2.0/accounts/${DATABRICKS_ACCOUNT_ID}/tag-policies" \
             -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"changes\":[{\"principal\":\"${PIPELINE_SP}\",\"add\":[\"ASSIGN\"]}]}" \
             -w "\nHTTP %{http_code}\n" || true
 
-          echo "--- Accounts tagPolicies API probe ---"
-          curl -s -X GET \
-            "https://accounts.azuredatabricks.net/api/2.0/accounts/${DATABRICKS_ACCOUNT_ID}/access-control/rule-sets/accounts/${DATABRICKS_ACCOUNT_ID}/tagPolicies/class.name" \
+          # 2. getIamPolicy on the tagPolicies resource
+          RESOURCE="accounts%2F${DATABRICKS_ACCOUNT_ID}%2FtagPolicies%2Fclass.name"
+          echo "--- getIamPolicy ---"
+          curl -sL -X GET \
+            "https://accounts.azuredatabricks.net/api/2.0/accounts/${DATABRICKS_ACCOUNT_ID}/access-control/rule-sets/${RESOURCE}:getIamPolicy" \
             -H "Authorization: Bearer ${TOKEN}" \
+            -w "\nHTTP %{http_code}\n" || true
+
+          # 3. SQL GRANT via workspace API
+          echo "--- SQL GRANT probe ---"
+          curl -s -X POST \
+            "${WORKSPACE_URL}/api/2.0/sql/statements" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"statement\":\"GRANT ASSIGN ON GOVERNED TAG \`class.name\` TO \`${PIPELINE_SP}\`\",\"wait_timeout\":\"10s\"}" \
             -w "\nHTTP %{http_code}\n" || true
 
       - name: Push outputs to pipeline repo secrets
