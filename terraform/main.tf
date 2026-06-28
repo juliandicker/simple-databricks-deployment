@@ -41,11 +41,6 @@ resource "azurerm_storage_container" "landing" {
   storage_account_id = azurerm_storage_account.adls.id
 }
 
-moved {
-  from = azurerm_storage_container.data["landing"]
-  to   = azurerm_storage_container.landing
-}
-
 resource "azurerm_storage_management_policy" "landing_purge" {
   storage_account_id = azurerm_storage_account.adls.id
 

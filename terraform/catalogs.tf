@@ -10,12 +10,6 @@ resource "databricks_external_location" "this" {
   depends_on = [databricks_metastore_assignment.this]
 }
 
-# Landing gets its own external location (removed from the for_each when landing left local.layers)
-moved {
-  from = databricks_external_location.this["landing"]
-  to   = databricks_external_location.landing
-}
-
 resource "databricks_external_location" "landing" {
   provider        = databricks.workspace
   name            = "${var.prefix}-landing"
@@ -63,7 +57,7 @@ resource "databricks_grants" "catalog" {
 
   grant {
     principal  = databricks_group.this["data_platform_admins"].display_name
-    privileges = ["MANAGE"]
+    privileges = ["ALL PRIVILEGES", "MANAGE"]
   }
 }
 
@@ -83,14 +77,8 @@ resource "databricks_grants" "bronze" {
 
   grant {
     principal  = databricks_group.this["data_platform_admins"].display_name
-    privileges = ["MANAGE"]
+    privileges = ["ALL PRIVILEGES", "MANAGE"]
   }
-}
-
-# Rename in state to avoid destroy+recreate collision on the same catalog name
-moved {
-  from = databricks_catalog.this["landing"]
-  to   = databricks_catalog.landing
 }
 
 # Landing: storage_root kept (immutable field, matches existing resource); no table-creation
@@ -137,7 +125,7 @@ resource "databricks_grants" "landing_catalog" {
 
   grant {
     principal  = databricks_group.this["data_platform_admins"].display_name
-    privileges = ["MANAGE"]
+    privileges = ["ALL PRIVILEGES", "MANAGE"]
   }
 }
 
