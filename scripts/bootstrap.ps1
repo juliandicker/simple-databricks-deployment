@@ -6,7 +6,7 @@
     If you change STATE_SA, update storage_account_name in terraform/backend.tf to match.
 #>
 
-$LOCATION       = "uksouth"
+$LOCATION       = "northeurope"
 $STATE_RG       = "dbplat-simple-tfstate-rg"
 $STATE_SA       = "dbplatsimplestate"   # must be globally unique — change if taken
 $STATE_CONTAINER = "tfstate"
