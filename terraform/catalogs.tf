@@ -147,24 +147,14 @@ resource "databricks_grants" "admin" {
 }
 
 # Data Classification is enabled on silver and gold catalogs by the
-# "Configure Data Classification" CI step in apply.yml. The engine auto-tags
+# "Enable Data Classification" CI step in apply.yml. The engine auto-tags
 # PII columns with class.* system governed tags within ~24 h of scanning.
 # Column-level tag bootstrapping (for the window before the engine runs)
-# is handled by the tfl pipeline's deploy workflow once ASSIGN is granted below.
-
-# Grant ASSIGN on class.* governed tags to the pipeline SP so the pipeline's
-# deploy workflow can bootstrap column tags immediately (before the ~24h
-# Data Classification scan completes). Account admins retain ASSIGN by default.
-resource "databricks_access_control_rule_set" "tag_policy_assign" {
-  provider = databricks.accounts
-  for_each = toset(["class.name", "class.email_address", "class.date_of_birth", "class.location"])
-  name     = "accounts/${var.databricks_account_id}/tagPolicies/${each.key}"
-
-  grant_rules {
-    role       = "roles/databricks.tagPolicyAssign"
-    principals = ["servicePrincipals/${databricks_service_principal.this["pipeline"].application_id}"]
-  }
-}
+# is handled by the tfl pipeline's deploy workflow.
+# ASSIGN on class.* governed tags is granted to the pipeline SP by the
+# "Enable Data Classification" CI step via SQL GRANT (ASSIGN cannot be
+# managed via databricks_access_control_rule_set — the API requires a UUID
+# rather than the tag key as the IAM resource identifier).
 
 # USE_CATALOG + USE_SCHEMA lets principals navigate to the catalog without granting data access
 resource "databricks_grants" "landing_catalog" {

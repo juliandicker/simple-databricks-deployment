@@ -61,9 +61,10 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           repositories: tfl-disruption-data-pipeline
 
-      - name: Enable Data Classification on silver and gold catalogs
+      - name: Enable Data Classification and grant ASSIGN on class.* tags
         run: |
           WORKSPACE_URL=$(terraform output -raw workspace_url)
+          PIPELINE_SP=$(terraform output -raw pipeline_sp_application_id)
           TOKEN=$(az account get-access-token \
             --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
             --query accessToken -o tsv)
@@ -81,12 +82,28 @@ jobs:
           export DATABRICKS_HOST="${WS_URL}"
           export DATABRICKS_TOKEN="${TOKEN}"
 
-          # Idempotent: "already exists" on re-runs is expected and harmless.
-          # ASSIGN on class.* governed tags is granted to the pipeline SP by Terraform
-          # (databricks_access_control_rule_set in catalogs.tf).
+          # 1. Enable Data Classification (idempotent — "already exists" on re-runs).
           databricks data-classification create-catalog-config "catalogs/silver" 2>&1 || true
           databricks data-classification create-catalog-config "catalogs/gold" 2>&1 || true
           echo "Data Classification configured on silver and gold"
+
+          # 2. Grant ASSIGN on class.* governed tags to the pipeline SP via SQL.
+          # databricks_access_control_rule_set cannot manage tag policies — the
+          # accounts API requires a UUID, not the tag key, as the IAM resource path.
+          # SQL GRANT uses the tag key directly and works under workspace auth.
+          WAREHOUSE_ID=$(databricks warehouses list --output json \
+            | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+          echo "Warehouse: ${WAREHOUSE_ID}"
+
+          for TAG in "class.name" "class.email_address" "class.date_of_birth" "class.location"; do
+            databricks statements execute \
+              --warehouse-id "${WAREHOUSE_ID}" \
+              --statement "GRANT ASSIGN ON GOVERNED TAG \`${TAG}\` TO \`${PIPELINE_SP}\`" \
+              --wait-timeout 60s \
+              2>&1 || true
+            echo "ASSIGN granted on ${TAG}"
+          done
+          echo "ASSIGN grant step complete"
 
       - name: Push outputs to pipeline repo secrets
         env:
