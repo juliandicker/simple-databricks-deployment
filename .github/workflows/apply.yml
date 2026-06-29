@@ -81,13 +81,10 @@ jobs:
           export DATABRICKS_HOST="${WS_URL}"
           export DATABRICKS_TOKEN="${TOKEN}"
 
-          # 1. Enable Data Classification (idempotent — "already exists" on re-runs).
+          # Idempotent: "already exists" on re-runs is expected and harmless.
           databricks data-classification create-catalog-config "catalogs/silver" 2>&1 || true
           databricks data-classification create-catalog-config "catalogs/gold" 2>&1 || true
           echo "Data Classification configured on silver and gold"
-
-          # ASSIGN on class.* governed tags is granted to the pipeline SP
-          # declaratively by databricks_grants in catalogs.tf (Terraform).
 
       - name: Push outputs to pipeline repo secrets
         env:
