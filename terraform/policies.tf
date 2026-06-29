@@ -1,3 +1,38 @@
+# Import blocks adopt policies already created by setup_abac.py into Terraform state.
+# After the first successful apply, Terraform owns these resources.
+import {
+  id = "CATALOG,silver,mask_name_columns"
+  to = databricks_policy_info.abac["silver_mask_name"]
+}
+import {
+  id = "CATALOG,silver,mask_email_columns"
+  to = databricks_policy_info.abac["silver_mask_email"]
+}
+import {
+  id = "CATALOG,silver,mask_dob_columns"
+  to = databricks_policy_info.abac["silver_mask_dob"]
+}
+import {
+  id = "CATALOG,silver,mask_location_columns"
+  to = databricks_policy_info.abac["silver_mask_location"]
+}
+import {
+  id = "CATALOG,gold,mask_name_columns"
+  to = databricks_policy_info.abac["gold_mask_name"]
+}
+import {
+  id = "CATALOG,gold,mask_email_columns"
+  to = databricks_policy_info.abac["gold_mask_email"]
+}
+import {
+  id = "CATALOG,gold,mask_dob_columns"
+  to = databricks_policy_info.abac["gold_mask_dob"]
+}
+import {
+  id = "CATALOG,gold,mask_location_columns"
+  to = databricks_policy_info.abac["gold_mask_location"]
+}
+
 locals {
   _abac_policies = {
     mask_name = {
