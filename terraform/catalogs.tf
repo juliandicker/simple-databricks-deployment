@@ -54,7 +54,7 @@ locals {
   # Team SPs get schema-level ALL PRIVILEGES via databricks_grants.team_schema in data-product-teams.tf.
   catalog_grants = merge(
     { for z in local.zones : z => { account_users = true } },
-    { admin = { account_users = false } }
+    { admin = { account_users = true } }
   )
 
   # All catalogs in one map: zones → databricks_catalog.this, admin → its own resource.
@@ -74,6 +74,15 @@ resource "databricks_grants" "catalog" {
     content {
       principal  = "account users"
       privileges = ["USE_CATALOG", "USE_SCHEMA"]
+    }
+  }
+
+  # Team SPs get full ownership of admin so they can deploy and execute shared functions (masking UDFs).
+  dynamic "grant" {
+    for_each = each.key == "admin" ? var.data_product_teams : {}
+    content {
+      principal  = databricks_service_principal.teams[grant.key].application_id
+      privileges = ["ALL PRIVILEGES", "MANAGE"]
     }
   }
 
