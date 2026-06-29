@@ -65,7 +65,6 @@ jobs:
           WS_URL=$(terraform output -raw workspace_url)
           echo "workspace_url=https://${WS_URL#https://}" >> $GITHUB_OUTPUT
           echo "pipeline_sp_id=$(terraform output -raw pipeline_sp_application_id)" >> $GITHUB_OUTPUT
-          echo "platform_sp_id=$(terraform output -raw platform_sp_application_id)" >> $GITHUB_OUTPUT
           echo "warehouse_id=$(terraform output -json team_warehouse_ids | jq -r '.data_platform_admins')" >> $GITHUB_OUTPUT
           printf 'exempt_sps=%s\n' "$(terraform output -json team_sp_application_ids | jq -r '[.[] | "`\(.)`"] | join(", ")')" >> $GITHUB_OUTPUT
 
@@ -106,10 +105,7 @@ jobs:
       - name: Deploy governance bundle
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
-        run: |
-          databricks bundle deploy \
-            --var "warehouse_id=${{ steps.tf.outputs.warehouse_id }}" \
-            --var "platform_sp_id=${{ steps.tf.outputs.platform_sp_id }}"
+        run: databricks bundle deploy --var "warehouse_id=${{ steps.tf.outputs.warehouse_id }}"
 
       - name: Run governance setup
         env:
