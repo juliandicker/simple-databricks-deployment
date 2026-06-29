@@ -91,3 +91,31 @@ resource "databricks_grants" "catalog" {
     privileges = ["ALL PRIVILEGES", "MANAGE"]
   }
 }
+
+# Data Classification system governed tags — all team SPs need ASSIGN so they can
+# apply class.* tags to their own columns during governance setup.
+# NOTE: governed_tag is a relatively new securable type in the Databricks provider.
+# If terraform plan errors here, grant ASSIGN manually in Catalog Explorer →
+# Govern → Governed Tags → each tag → Permissions for each SP in team_sp_application_ids.
+locals {
+  governed_tags = toset([
+    "class.name",
+    "class.email_address",
+    "class.date_of_birth",
+    "class.location",
+  ])
+}
+
+resource "databricks_grants" "governed_tag" {
+  provider     = databricks.workspace
+  for_each     = local.governed_tags
+  governed_tag = each.key
+
+  dynamic "grant" {
+    for_each = databricks_service_principal.teams
+    content {
+      principal  = grant.value.application_id
+      privileges = ["ASSIGN"]
+    }
+  }
+}
