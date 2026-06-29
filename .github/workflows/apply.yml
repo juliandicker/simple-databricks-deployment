@@ -111,4 +111,4 @@ jobs:
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
           EXEMPT_SPS: ${{ steps.tf.outputs.exempt_sps }}
-        run: databricks bundle run governance_setup --param "exempt_sps=$EXEMPT_SPS"
+        run: databricks bundle run governance_setup --params "exempt_sps=$EXEMPT_SPS"
