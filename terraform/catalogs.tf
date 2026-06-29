@@ -150,11 +150,19 @@ resource "databricks_grants" "admin" {
 # "Enable Data Classification" CI step in apply.yml. The engine auto-tags
 # PII columns with class.* system governed tags within ~24 h of scanning.
 # Column-level tag bootstrapping (for the window before the engine runs)
-# is handled by the tfl pipeline's deploy workflow.
-# ASSIGN on class.* governed tags is granted to the pipeline SP by the
-# "Enable Data Classification" CI step via SQL GRANT (ASSIGN cannot be
-# managed via databricks_access_control_rule_set — the API requires a UUID
-# rather than the tag key as the IAM resource identifier).
+# is handled by the tfl pipeline's deploy workflow once ASSIGN is granted below.
+
+# Grant ASSIGN on class.* governed tags to the pipeline SP.
+resource "databricks_grants" "class_tag_assign" {
+  provider     = databricks.workspace
+  for_each     = toset(["class.name", "class.email_address", "class.date_of_birth", "class.location"])
+  governed_tag = each.key
+
+  grant {
+    principal  = databricks_service_principal.this["pipeline"].application_id
+    privileges = ["ASSIGN"]
+  }
+}
 
 # USE_CATALOG + USE_SCHEMA lets principals navigate to the catalog without granting data access
 resource "databricks_grants" "landing_catalog" {
