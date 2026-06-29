@@ -118,4 +118,9 @@ resource "databricks_grants" "governed_tag" {
       privileges = ["ASSIGN"]
     }
   }
+
+  grant {
+    principal  = databricks_group.this["data_stewards"].display_name
+    privileges = ["ASSIGN"]
+  }
 }
