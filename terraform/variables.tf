@@ -87,6 +87,13 @@ variable "data_product_teams" {
     sp_github_environment = optional(string, "dev")
     landing_sources       = list(string)
     schemas               = map(list(string))
+    warehouse = optional(object({
+      cluster_size     = optional(string, "2X-Small")
+      min_num_clusters = optional(number, 1)
+      max_num_clusters = optional(number, 1)
+      auto_stop_mins   = optional(number, 10)
+      serverless       = optional(bool, true)
+    }), {})
   }))
   default     = {}
   description = <<-EOT

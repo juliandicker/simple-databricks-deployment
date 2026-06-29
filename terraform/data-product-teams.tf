@@ -126,3 +126,35 @@ resource "databricks_grants" "team_landing" {
 
   depends_on = [databricks_volume.team_landing]
 }
+
+# One SQL warehouse per team. Defaults to serverless 2X-Small; override via warehouse block in tfvars.
+resource "databricks_sql_endpoint" "team" {
+  provider     = databricks.workspace
+  for_each     = var.data_product_teams
+  name         = "${var.prefix}-${each.key}"
+  cluster_size = each.value.warehouse.cluster_size
+
+  min_num_clusters          = each.value.warehouse.min_num_clusters
+  max_num_clusters          = each.value.warehouse.max_num_clusters
+  auto_stop_mins            = each.value.warehouse.auto_stop_mins
+  enable_serverless_compute = each.value.warehouse.serverless
+  warehouse_type            = "PRO"
+
+  depends_on = [databricks_metastore_assignment.this]
+}
+
+resource "databricks_permissions" "team_warehouse" {
+  provider        = databricks.workspace
+  for_each        = var.data_product_teams
+  sql_endpoint_id = databricks_sql_endpoint.team[each.key].id
+
+  access_control {
+    service_principal_name = databricks_service_principal.teams[each.key].application_id
+    permission_level       = "CAN_USE"
+  }
+
+  access_control {
+    group_name       = databricks_group.this["data_platform_admins"].display_name
+    permission_level = "CAN_MANAGE"
+  }
+}
