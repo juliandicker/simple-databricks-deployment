@@ -131,7 +131,7 @@ resource "databricks_grants" "team_landing" {
 resource "databricks_sql_endpoint" "team" {
   provider     = databricks.workspace
   for_each     = var.data_product_teams
-  name         = "${var.prefix}-${each.key}"
+  name         = "${each.key}-sql-warehouse"
   cluster_size = each.value.warehouse.cluster_size
 
   min_num_clusters          = each.value.warehouse.min_num_clusters
