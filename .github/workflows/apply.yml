@@ -100,7 +100,7 @@ jobs:
               --arg wid "${WAREHOUSE_ID}" \
               --arg sp "${PIPELINE_SP}" \
               --arg tag "${TAG}" \
-              '{"warehouse_id":$wid,"statement":("GRANT ASSIGN ON GOVERNED TAG `"+$tag+"` TO `"+$sp+"`"),"wait_timeout":"60s"}')
+              '{"warehouse_id":$wid,"statement":("GRANT ASSIGN ON GOVERNED TAG `"+$tag+"` TO `"+$sp+"`"),"wait_timeout":"30s"}')
             curl -s -X POST "${DATABRICKS_HOST}/api/2.0/sql/statements" \
               -H "Authorization: Bearer ${TOKEN}" \
               -H "Content-Type: application/json" \
