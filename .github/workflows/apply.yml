@@ -88,20 +88,24 @@ jobs:
           echo "Data Classification configured on silver and gold"
 
           # 2. Grant ASSIGN on class.* governed tags to the pipeline SP via SQL.
-          # databricks_access_control_rule_set cannot manage tag policies — the
-          # accounts API requires a UUID, not the tag key, as the IAM resource path.
-          # SQL GRANT uses the tag key directly and works under workspace auth.
-          WAREHOUSE_ID=$(databricks warehouses list --output json \
-            | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+          # databricks_access_control_rule_set cannot target tag policies by key
+          # (the accounts API requires a UUID as the IAM resource identifier).
+          # SQL GRANT uses the tag key directly and executes under workspace auth.
+          WAREHOUSE_ID=$(databricks warehouses list --output json 2>&1 \
+            | jq -r 'if type=="array" then .[0].id else .warehouses[0].id end' 2>/dev/null)
           echo "Warehouse: ${WAREHOUSE_ID}"
 
           for TAG in "class.name" "class.email_address" "class.date_of_birth" "class.location"; do
-            databricks statements execute \
-              --warehouse-id "${WAREHOUSE_ID}" \
-              --statement "GRANT ASSIGN ON GOVERNED TAG \`${TAG}\` TO \`${PIPELINE_SP}\`" \
-              --wait-timeout 60s \
-              2>&1 || true
-            echo "ASSIGN granted on ${TAG}"
+            PAYLOAD=$(jq -n \
+              --arg wid "${WAREHOUSE_ID}" \
+              --arg sp "${PIPELINE_SP}" \
+              --arg tag "${TAG}" \
+              '{"warehouse_id":$wid,"statement":("GRANT ASSIGN ON GOVERNED TAG `"+$tag+"` TO `"+$sp+"`"),"wait_timeout":"60s"}')
+            curl -s -X POST "${DATABRICKS_HOST}/api/2.0/sql/statements" \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}" | jq -c '.status // .' 2>/dev/null || true
+            echo "ASSIGN attempted on ${TAG}"
           done
           echo "ASSIGN grant step complete"
 
