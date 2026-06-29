@@ -92,35 +92,15 @@ resource "databricks_grants" "catalog" {
   }
 }
 
-# Data Classification system governed tags — all team SPs need ASSIGN so they can
-# apply class.* tags to their own columns during governance setup.
-# NOTE: governed_tag is a relatively new securable type in the Databricks provider.
-# If terraform plan errors here, grant ASSIGN manually in Catalog Explorer →
-# Govern → Governed Tags → each tag → Permissions for each SP in team_sp_application_ids.
-locals {
-  governed_tags = toset([
-    "class.name",
-    "class.email_address",
-    "class.date_of_birth",
-    "class.location",
-  ])
-}
-
-resource "databricks_grants" "governed_tag" {
-  provider     = databricks.workspace
-  for_each     = local.governed_tags
-  governed_tag = each.key
-
-  dynamic "grant" {
-    for_each = databricks_service_principal.teams
-    content {
-      principal  = grant.value.application_id
-      privileges = ["ASSIGN"]
-    }
-  }
-
-  grant {
-    principal  = databricks_group.this["data_stewards"].display_name
-    privileges = ["ASSIGN"]
-  }
-}
+# Governed tag ASSIGN grants cannot be managed via Terraform — the Databricks provider
+# does not support governed_tag as a securable type in databricks_grants.
+# Grant ASSIGN manually in Catalog Explorer → Govern → Governed Tags → each tag →
+# Permissions for the following principals (see team_sp_application_ids output for IDs):
+#   - Each team SP (application ID from terraform output team_sp_application_ids)
+#   - sg-dbplat-data-stewards (human reviewers)
+# Tags requiring ASSIGN: class.name, class.email_address, class.date_of_birth,
+#   class.location, class.phone_number, class.ip_address, class.age, class.credit_card,
+#   class.iban_code, class.us_bank_number, class.vin, class.driver_license,
+#   class.us_driver_license, class.passport, class.us_passport, class.us_ssn,
+#   class.uk_nino, class.uk_nhs, class.de_id_card, class.de_svnr, class.de_tax_id,
+#   class.ethnicity, class.marital_status, class.sexual_orientation, class.criminal_background
