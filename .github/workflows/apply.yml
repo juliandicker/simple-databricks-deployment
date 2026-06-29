@@ -68,6 +68,11 @@ jobs:
           echo "warehouse_id=$(terraform output -json team_warehouse_ids | jq -r '.data_platform_admins')" >> $GITHUB_OUTPUT
           printf 'exempt_sps=%s\n' "$(terraform output -json team_sp_application_ids | jq -r '[.[] | "`\(.)`"] | join(", ")')" >> $GITHUB_OUTPUT
 
+      - name: Substitute SP IDs into governance SQL
+        env:
+          EXEMPT_SPS: ${{ steps.tf.outputs.exempt_sps }}
+        run: sed -i "s|{{job.parameters.exempt_sps}}|${EXEMPT_SPS}|g" governance/create_policies.sql
+
       - name: Exchange Azure token for Databricks token
         run: |
           echo "DATABRICKS_TOKEN=$(az account get-access-token \
@@ -111,4 +116,4 @@ jobs:
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
           EXEMPT_SPS: ${{ steps.tf.outputs.exempt_sps }}
-        run: databricks bundle run governance_setup --var "warehouse_id=${{ steps.tf.outputs.warehouse_id }}" --params "exempt_sps=$EXEMPT_SPS"
+        run: databricks bundle run governance_setup --var "warehouse_id=${{ steps.tf.outputs.warehouse_id }}"
