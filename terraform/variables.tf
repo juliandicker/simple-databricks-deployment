@@ -80,17 +80,45 @@ variable "service_principals" {
   default = {}
 }
 
-variable "landing_sources" {
-  type        = map(list(string))
+variable "data_product_teams" {
+  type = map(object({
+    display_name          = string
+    sp_github_repo        = optional(string)
+    sp_github_environment = optional(string, "dev")
+    landing_sources       = list(string)
+    schemas               = map(list(string))
+  }))
   default     = {}
   description = <<-EOT
-    Map of landing source name to the Databricks principals (users, groups, or
-    service principals) granted READ_VOLUME + WRITE_VOLUME on that source's volume.
-    Each source gets its own sub-path: /Volumes/landing/raw/<source>/
+    Data mesh domain teams. Each team key maps to a domain (e.g. "travel", "music").
+    A team owns one service principal and one or more data products (schemas + landing volumes).
+    landing_sources: volume names in landing.raw — one per source system ingested by this team.
+    schemas: map of layer → schema names. bronze/silver are typically source-named; gold is
+    domain-named to reflect that gold publishes merged data products for consumers.
+    Adding a data product to a team, or adding a new domain team, requires only a tfvars change.
     Example:
-      landing_sources = {
-        salesforce = ["group:sales-engineers"]
-        sap        = ["group:finance-team", "servicePrincipal:etl-sp-app-id"]
+      data_product_teams = {
+        travel = {
+          display_name    = "sp-travel-data-products"
+          sp_github_repo  = "org/travel-pipeline"
+          landing_sources = ["tfl", "british_airways"]
+          schemas = {
+            landing = ["travel"]
+            bronze  = ["tfl", "british_airways"]
+            silver  = ["tfl", "british_airways"]
+            gold    = ["travel"]
+          }
+        }
+        music = {
+          display_name    = "sp-music-data-products"
+          landing_sources = ["spotify"]
+          schemas = {
+            landing = ["music"]
+            bronze  = ["spotify"]
+            silver  = ["spotify"]
+            gold    = ["music"]
+          }
+        }
       }
   EOT
 }

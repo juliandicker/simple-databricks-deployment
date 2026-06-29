@@ -24,6 +24,6 @@ output "resource_group_name" {
 }
 
 output "pipeline_sp_application_id" {
-  description = "Application (client) ID of the pipeline service principal. Set as pipeline_sp_application_id in databricks.yml targets or pass via --var on bundle deploy."
-  value       = databricks_service_principal.this["pipeline"].application_id
+  description = "Application (client) ID of the Travel Data Products Team SP. Used by the TFL pipeline repo as AZURE_CLIENT_ID."
+  value       = databricks_service_principal.teams["travel"].application_id
 }

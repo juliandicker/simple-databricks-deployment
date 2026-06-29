@@ -19,11 +19,18 @@ groups = {
   }
 }
 
-service_principals = {
-  pipeline = {
-    display_name       = "sp-tfl-pipeline"
-    github_repo        = "juliandicker/tfl-disruption-data-pipeline"
-    github_environment = "dev"
+data_product_teams = {
+  travel = {
+    display_name          = "sp-travel-data-products"
+    sp_github_repo        = "juliandicker/tfl-disruption-data-pipeline"
+    sp_github_environment = "dev"
+    landing_sources = ["tfl"]
+    schemas = {
+      landing = ["travel"]
+      bronze  = ["tfl"]
+      silver  = ["tfl"]
+      gold    = ["travel"]
+    }
   }
 }
 

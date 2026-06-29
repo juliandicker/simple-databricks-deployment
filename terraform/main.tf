@@ -1,5 +1,6 @@
 locals {
   layers               = ["bronze", "silver", "gold"]
+  zones                = concat(local.layers, ["landing"])  # layers + landing; drives catalogs and external locations
   storage_account_name = replace("${var.prefix}adls", "-", "")
 
   tags = {
@@ -28,16 +29,10 @@ resource "azurerm_storage_account" "adls" {
   tags                     = local.tags
 }
 
-# One container per lakehouse layer, plus a root container for metastore system tables
+# One container per zone (bronze, silver, gold, landing)
 resource "azurerm_storage_container" "data" {
-  for_each           = toset(local.layers)
+  for_each           = toset(local.zones)
   name               = each.key
-  storage_account_id = azurerm_storage_account.adls.id
-}
-
-# Landing is separate — raw file drop zone backed by a Unity Catalog external volume
-resource "azurerm_storage_container" "landing" {
-  name               = "landing"
   storage_account_id = azurerm_storage_account.adls.id
 }
 
