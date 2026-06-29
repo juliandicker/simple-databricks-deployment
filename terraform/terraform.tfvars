@@ -20,6 +20,10 @@ groups = {
 }
 
 data_product_teams = {
+  data_platform_admins = {
+    display_name  = "sp-data-platform"
+    platform_team = true
+  }
   travel = {
     display_name          = "sp-travel-data-products"
     sp_github_repo        = "juliandicker/tfl-disruption-data-pipeline"

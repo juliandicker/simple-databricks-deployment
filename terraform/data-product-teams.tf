@@ -46,6 +46,11 @@ locals {
     for k, v in var.data_product_teams : k => v
     if v.sp_github_repo != null
   }
+
+  platform_teams = {
+    for k, v in var.data_product_teams : k => v
+    if v.platform_team
+  }
 }
 
 # One Entra application per team.
@@ -112,6 +117,15 @@ resource "databricks_volume" "team_landing" {
   volume_type      = "EXTERNAL"
   storage_location = "abfss://landing@${azurerm_storage_account.adls.name}.dfs.core.windows.net/raw/${each.value.source}/"
   comment          = "Landing drop zone for ${each.value.source} (${each.value.team_key} team); blobs purged after 30 days"
+}
+
+# Platform team SPs get data_platform_admins membership directly via resource
+# reference — avoids the data source chicken-and-egg when SP is new in the same apply.
+resource "databricks_group_member" "platform_team_admins" {
+  provider  = databricks.accounts
+  for_each  = local.platform_teams
+  group_id  = databricks_group.this["data_platform_admins"].id
+  member_id = databricks_service_principal.teams[each.key].id
 }
 
 resource "databricks_grants" "team_landing" {

@@ -85,8 +85,9 @@ variable "data_product_teams" {
     display_name          = string
     sp_github_repo        = optional(string)
     sp_github_environment = optional(string, "dev")
-    landing_sources       = list(string)
-    schemas               = map(list(string))
+    landing_sources       = optional(list(string), [])
+    schemas               = optional(map(list(string)), {})
+    platform_team         = optional(bool, false)
     warehouse = optional(object({
       cluster_size     = optional(string, "2X-Small")
       min_num_clusters = optional(number, 1)

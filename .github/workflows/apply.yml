@@ -1,10 +1,14 @@
-name: Terraform Apply
+name: Terraform Apply + Governance
 
 on:
   push:
     branches: [main]
     paths:
       - "terraform/**"
+      - "governance/**"
+      - "resources/**"
+      - "databricks.yml"
+      - ".github/workflows/apply.yml"
   workflow_dispatch:
 
 permissions:
@@ -15,9 +19,6 @@ jobs:
   apply:
     runs-on: ubuntu-latest
     environment: dev
-    defaults:
-      run:
-        working-directory: terraform
 
     steps:
       - uses: actions/checkout@v7
@@ -30,8 +31,11 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
 
       - name: Terraform Init
+        working-directory: terraform
         run: terraform init
         env:
           ARM_USE_OIDC: "true"
@@ -40,6 +44,7 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform Apply
+        working-directory: terraform
         run: terraform apply -auto-approve
         env:
           ARM_USE_OIDC: "true"
@@ -53,6 +58,32 @@ jobs:
           TF_VAR_cost_centre: ${{ secrets.COST_CENTRE }}
           TF_VAR_demo_user_password: ${{ secrets.DEMO_USER_PASSWORD }}
 
+      - name: Capture Terraform outputs
+        id: tf
+        working-directory: terraform
+        run: |
+          WS_URL=$(terraform output -raw workspace_url)
+          echo "workspace_url=https://${WS_URL#https://}" >> $GITHUB_OUTPUT
+          echo "pipeline_sp_id=$(terraform output -raw pipeline_sp_application_id)" >> $GITHUB_OUTPUT
+          echo "platform_sp_id=$(terraform output -raw platform_sp_application_id)" >> $GITHUB_OUTPUT
+          echo "warehouse_id=$(terraform output -json team_warehouse_ids | jq -r '.data_platform_admins')" >> $GITHUB_OUTPUT
+          printf 'exempt_sps=%s\n' "$(terraform output -json team_sp_application_ids | jq -r '[.[] | "`\(.)`"] | join(", ")')" >> $GITHUB_OUTPUT
+
+      - name: Exchange Azure token for Databricks token
+        run: |
+          echo "DATABRICKS_TOKEN=$(az account get-access-token \
+            --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
+            --query accessToken -o tsv)" >> $GITHUB_ENV
+
+      - uses: databricks/setup-cli@main
+
+      - name: Enable Data Classification on silver and gold
+        env:
+          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
+        run: |
+          databricks data-classification create-catalog-config "catalogs/silver" 2>&1 || true
+          databricks data-classification create-catalog-config "catalogs/gold" 2>&1 || true
+
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v3
@@ -61,38 +92,27 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           repositories: tfl-disruption-data-pipeline
 
-      - name: Enable Data Classification on silver and gold catalogs
-        run: |
-          WORKSPACE_URL=$(terraform output -raw workspace_url)
-          TOKEN=$(az account get-access-token \
-            --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
-            --query accessToken -o tsv)
-
-          CLI_URL=$(curl -s \
-            "https://api.github.com/repos/databricks/cli/releases/latest" \
-            | grep '"browser_download_url"' \
-            | grep 'linux_amd64' | grep '\.zip' \
-            | cut -d'"' -f4 | head -1)
-          curl -fsSL "${CLI_URL}" -o /tmp/db.zip
-          unzip -j /tmp/db.zip -d /usr/local/bin/ >/dev/null 2>&1
-          chmod +x /usr/local/bin/databricks
-
-          WS_URL="https://${WORKSPACE_URL#https://}"
-          export DATABRICKS_HOST="${WS_URL}"
-          export DATABRICKS_TOKEN="${TOKEN}"
-
-          # Idempotent: "already exists" on re-runs is expected and harmless.
-          databricks data-classification create-catalog-config "catalogs/silver" 2>&1 || true
-          databricks data-classification create-catalog-config "catalogs/gold" 2>&1 || true
-          echo "Data Classification configured on silver and gold"
-
       - name: Push outputs to pipeline repo secrets
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh secret set AZURE_CLIENT_ID \
-            --body "$(terraform output -raw pipeline_sp_application_id)" \
+            --body "${{ steps.tf.outputs.pipeline_sp_id }}" \
             --repo juliandicker/tfl-disruption-data-pipeline
           gh secret set DATABRICKS_HOST \
-            --body "$(terraform output -raw workspace_url)" \
+            --body "${{ steps.tf.outputs.workspace_url }}" \
             --repo juliandicker/tfl-disruption-data-pipeline
+
+      - name: Deploy governance bundle
+        env:
+          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
+        run: |
+          databricks bundle deploy \
+            --var "warehouse_id=${{ steps.tf.outputs.warehouse_id }}" \
+            --var "platform_sp_id=${{ steps.tf.outputs.platform_sp_id }}"
+
+      - name: Run governance setup
+        env:
+          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
+          EXEMPT_SPS: ${{ steps.tf.outputs.exempt_sps }}
+        run: databricks bundle run governance_setup --param "exempt_sps=$EXEMPT_SPS"
