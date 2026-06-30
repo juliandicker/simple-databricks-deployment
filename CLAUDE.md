@@ -170,6 +170,12 @@ Neither `databricks_grants` (provider limitation) nor SQL `GRANT ASSIGN ON TAG` 
 
 Principal granted `ASSIGN`: `sg-dbplat-governed-tags` (nests `sg-dbplat-data-product-sps` + `sg-dbplat-data-stewards`).
 
+### Usage dashboard
+
+The `system.billing` schema is enabled by `databricks_system_schema.billing` in `main.tf` (workspace provider, depends on metastore assignment). This populates `system.billing.usage` and `system.billing.list_prices`, which back the pre-built account usage dashboard.
+
+The dashboard itself must be imported once per deploy via the account console: **Usage → Consumption → Setup dashboard → Account usage, Version 2.0 → select workspace → Import**. It is a Lakeview dashboard deployed into the chosen workspace and persists until the workspace is destroyed.
+
 ### DABs governance job
 
 `resources/jobs/governance.yml` defines the `platform-governance-setup` job with two tasks:

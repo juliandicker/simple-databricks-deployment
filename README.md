@@ -214,6 +214,14 @@ Push a commit to `main` that touches anything under `terraform/`, `governance/`,
 
 For a first deploy you can trigger apply manually via GitHub Actions → Terraform Apply → Run workflow.
 
+### Post-deploy manual steps
+
+Two things require a one-off manual action after each fresh deploy:
+
+1. **Governed tag ASSIGN** — grant `sg-dbplat-governed-tags` at account level via Catalog → Govern → Governed Tags → **Account Permissions** tab. See [docs/governed-tag-grants.md](docs/governed-tag-grants.md).
+
+2. **Usage dashboard** — Terraform enables the `system.billing` schema automatically. To import the pre-built dashboard: go to the Databricks **account console → Usage → Consumption → Setup dashboard**, select **Account usage**, Version 2.0, choose the workspace, and click **Import**.
+
 ---
 
 ## Destroying all resources
