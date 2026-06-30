@@ -1,3 +1,5 @@
+cost_centre = "data-eng"
+
 groups = {
   data_platform_admins = {
     display_name         = "sg-dbplat-data-platform-admins"
