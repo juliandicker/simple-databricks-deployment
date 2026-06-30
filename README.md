@@ -77,7 +77,7 @@ Silver and gold carry Unity Catalog column mask policies driven by Databricks Da
 
 #### Governed tag ASSIGN permissions — manual step required
 
-After each fresh deploy, `ASSIGN` must be granted on 18 `class.*` tags to one principal (`sg-dbplat-governed-tags`). This cannot be automated — the Unity Catalog REST API does not accept OIDC-derived tokens for tag permission changes. US-specific and DE-specific tags are out of scope.
+After each fresh deploy, `ASSIGN` must be granted on 18 `class.*` tags to one principal (`sg-dbplat-governed-tags`). This cannot be automated — Databricks has not implemented governed tag permission management in the REST API or SDK. US-specific and DE-specific tags are out of scope.
 
 See **[docs/governed-tag-grants.md](docs/governed-tag-grants.md)** for the full step-by-step procedure.
 
