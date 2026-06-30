@@ -6,13 +6,16 @@
       "queryLines": [
         "SELECT\n",
         "  full_table_name,\n",
-        "  max_updated_at\n",
+        "  max_updated_at,\n",
+        "  freshness_sla,\n",
+        "  freshness_sla_minutes,\n",
+        "  sla_status\n",
         "FROM\n",
         "  admin.shared.retention_compliance\n",
         "WHERE\n",
-        "  max_updated_at < NOW() - INTERVAL 24 HOURS\n",
-        "  OR max_updated_at IS NULL\n",
+        "  sla_status IN ('STALE', 'NEVER_UPDATED', 'ERROR')\n",
         "ORDER BY\n",
+        "  CASE WHEN sla_status = 'NEVER_UPDATED' THEN 0 WHEN sla_status = 'ERROR' THEN 1 ELSE 2 END,\n",
         "  max_updated_at ASC NULLS FIRST"
       ]
     },
@@ -27,6 +30,8 @@
         "  insertion_status,\n",
         "  freshness_status,\n",
         "  retention_status,\n",
+        "  sla_status,\n",
+        "  freshness_sla,\n",
         "  max_updated_at\n",
         "FROM\n",
         "  admin.shared.retention_compliance\n",
@@ -34,6 +39,7 @@
         "  insertion_status = 'NON-COMPLIANT'\n",
         "  OR freshness_status = 'NON-COMPLIANT'\n",
         "  OR retention_status = 'NON-COMPLIANT'\n",
+        "  OR sla_status IN ('STALE', 'NEVER_UPDATED', 'ERROR')\n",
         "ORDER BY\n",
         "  table_catalog,\n",
         "  table_schema"
@@ -74,11 +80,11 @@
           },
           {
             "name": "stale_tables",
-            "expr": "COUNT(CASE WHEN max_updated_at < NOW() - INTERVAL 24 HOURS OR max_updated_at IS NULL THEN 1 END)"
+            "expr": "COUNT(CASE WHEN sla_status IN ('STALE', 'NEVER_UPDATED', 'ERROR') THEN 1 END)"
           },
           {
             "name": "never_updated",
-            "expr": "COUNT(CASE WHEN max_updated_at IS NULL THEN 1 END)"
+            "expr": "COUNT(CASE WHEN sla_status = 'NEVER_UPDATED' THEN 1 END)"
           },
           {
             "name": "stale_pct",
@@ -632,6 +638,12 @@
                 "columns": [
                   {
                     "fieldName": "full_table_name"
+                  },
+                  {
+                    "fieldName": "sla_status"
+                  },
+                  {
+                    "fieldName": "freshness_sla"
                   },
                   {
                     "fieldName": "max_updated_at"

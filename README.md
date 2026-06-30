@@ -150,7 +150,7 @@ Every managed table in bronze, silver, and gold must carry three platform metada
 | Column | Type | Set when | Purpose |
 |---|---|---|---|
 | `_inserted_at` | `TIMESTAMP` | First insert only — never updated | Immutable audit trail of when the row arrived in this layer |
-| `_updated_at` | `TIMESTAMP` | Every write | Drives freshness SLA monitoring |
+| `_updated_at` | `TIMESTAMP` | Every write | Drives freshness SLA monitoring — staleness is measured against the table's configured SLA |
 | `_delete_at` | `TIMESTAMP` | Set to the row's expiry date | Drives Auto TTL — the platform deletes rows after this date |
 
 ```python
@@ -173,11 +173,42 @@ Two governance jobs enforce these conventions:
 
 - **`apply_auto_ttl`** — sweeps all managed tables that have `_delete_at` and applies `ALTER TABLE ... DELETE ROWS 0 DAYS AFTER _delete_at`. Idempotent.
 - **`compute_freshness_metrics`** — queries `MAX(_updated_at)` per table and writes to `admin.shared.freshness_metrics`.
-- **`create_retention_compliance_view`** — rebuilds `admin.shared.retention_compliance`, which surfaces `insertion_status`, `freshness_status`, and `retention_status` for every managed table plus `max_updated_at`. Non-compliant tables sort to the top.
+- **`create_retention_compliance_view`** — rebuilds `admin.shared.retention_compliance`, which surfaces structural compliance (`insertion_status`, `freshness_status`, `retention_status`) and operational SLA compliance (`sla_status`) for every managed table. Non-compliant and stale tables sort to the top.
 
 ```sql
-SELECT * FROM admin.shared.retention_compliance WHERE retention_status = 'NON-COMPLIANT';
+SELECT * FROM admin.shared.retention_compliance WHERE sla_status = 'STALE';
 ```
+
+#### Per-table freshness SLAs
+
+Teams set the acceptable staleness window per table as a table property. The value is visible in the Unity Catalog Explorer under the table's **Details** tab.
+
+```sql
+-- Real-time pipeline — expect updates every hour
+ALTER TABLE silver.tfl.journeys
+SET TBLPROPERTIES ('platform.freshness_sla' = '1h');
+
+-- Reference data — acceptable to update weekly
+ALTER TABLE gold.reference.station_codes
+SET TBLPROPERTIES ('platform.freshness_sla' = '7d');
+```
+
+| Unit | Example | Minutes |
+|---|---|---|
+| `m` | `30m` | 30 |
+| `h` | `4h` | 240 |
+| `d` | `7d` | 10,080 |
+| `y` | `10y` | 5,259,600 |
+
+Default if not set: `1d` (1,440 minutes). The `compute_freshness_metrics` job reads the property from each table and stores it in `admin.shared.freshness_metrics` alongside `max_updated_at`. The compliance view derives `sla_status`:
+
+| Value | Meaning |
+|---|---|
+| `FRESH` | Last updated within the SLA window |
+| `STALE` | Last updated outside the SLA window |
+| `NEVER_UPDATED` | `_updated_at` column exists but all values are null |
+| `NO_COLUMN` | `_updated_at` column is missing (structural non-compliance) |
+| `ERROR` | Freshness metrics computation failed for this table |
 
 ### Platform Data Governance dashboard
 
