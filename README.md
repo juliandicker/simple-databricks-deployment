@@ -13,41 +13,63 @@ Azure Resource Group (dbplat-simple-rg)
 │   ├── container: silver
 │   └── container: gold
 ├── Databricks Access Connector (managed identity → Storage Blob Data Contributor)
-└── Databricks Workspace (Premium SKU)
+└── Databricks Workspace (Trial SKU — Premium features, 14-day free trial)
 
 Unity Catalog (account-level)
 └── Metastore (owner: data-platform-admins) → assigned to workspace
     ├── Storage Credential (access connector managed identity)
-    ├── External Location: landing
-    ├── External Location: bronze
-    ├── External Location: silver
-    ├── External Location: gold
-    ├── Catalog: landing  → schema: raw → volume: <source>  (one per source, external)
-    ├── Catalog: bronze   → schema: default
-    ├── Catalog: silver   → schema: default
-    └── Catalog: gold     → schema: default
+    ├── External Location: landing / bronze / silver / gold
+    ├── Catalog: admin    → schema: shared → masking UDFs (ABAC)
+    ├── Catalog: landing  → schema: raw → volume: <source>  (one per team source)
+    ├── Catalog: bronze   → schema: default, <team schemas>
+    ├── Catalog: silver   → schema: default, <team schemas>  + ABAC column masks
+    └── Catalog: gold     → schema: default, <team schemas>  + ABAC column masks
+
+Data product teams (one entry per domain in terraform.tfvars)
+└── travel
+    ├── Entra SP: sp-travel-data-products  (GitHub OIDC federated credential)
+    ├── Landing volume: /Volumes/landing/raw/tfl/
+    ├── Schemas: bronze.tfl, silver.tfl, gold.tfl
+    └── SQL warehouse: travel-sql-warehouse (serverless 2X-Small)
 
 Entra ID security groups (synced to Databricks account via AIM)
 ├── sg-dbplat-data-platform-admins  → Databricks: account admin, metastore owner, workspace ADMIN
-├── sg-dbplat-data-stewards         → Databricks: workspace USER
-├── sg-dbplat-pii-readers           → Databricks: workspace USER
-└── sg-dbplat-standard-readers      → Databricks: workspace USER
+├── sg-dbplat-data-stewards         → Databricks: workspace USER, ABAC exempt (sees raw PII)
+├── sg-dbplat-pii-readers           → Databricks: workspace USER, ABAC exempt (sees raw PII)
+└── sg-dbplat-standard-readers      → Databricks: workspace USER (sees masked data only)
 ```
 
 ### Catalog access
 
 Access follows a data mesh principle — all account users can browse every layer:
 
-| Catalog | Account users | Pipeline SP |
+| Catalog | Account users | Team SP |
 |---|---|---|
-| `landing` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` |
-| `bronze` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` |
-| `silver` | `USE_CATALOG`, `USE_SCHEMA`, `SELECT` | `ALL PRIVILEGES` |
-| `gold` | `USE_CATALOG`, `USE_SCHEMA`, `SELECT` | `ALL PRIVILEGES` |
+| `landing` | `USE_CATALOG`, `USE_SCHEMA` | `READ_VOLUME`, `WRITE_VOLUME` on owned volumes |
+| `bronze` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` on owned schemas |
+| `silver` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` on owned schemas |
+| `gold` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` on owned schemas |
 
-Bronze is intentionally browse-only for account users — data access requires the pipeline SP. Silver and gold are read-accessible to all users; ABAC column masking in the pipeline repo controls what PII they see.
+Bronze is intentionally browse-only for account users — data access requires the team SP. Silver and gold are readable by all users but protected by ABAC column masking — standard readers see masked values; `pii-readers` and `data-stewards` see the raw data.
 
-> **One-time governed tag grant**: the pipeline repo's `governance-setup` job bootstraps `class.*` Data Classification tags onto PII columns at run time. This requires `ASSIGN` on `class.name`, `class.email_address`, `class.date_of_birth`, and `class.location` to be granted to the pipeline SP. The Databricks Terraform provider does not yet support governed tag grants, so this must be done once manually: Catalog Explorer → Govern → Governed Tags → each tag → Permissions → Add `sp-tfl-pipeline` with `ASSIGN`.
+### ABAC column masking
+
+Silver and gold carry Unity Catalog column mask policies driven by Databricks Data Classification (`class.*` governed tags). When Data Classification detects a PII or sensitive column, it applies a `class.*` tag; the matching policy then masks the value for standard readers.
+
+**8 masking UDFs** in `admin.shared`:
+
+| UDF | Example output |
+|---|---|
+| `mask_email` | `******@******.co.uk` |
+| `mask_dob` | `1980-01-01` (decade of birth) |
+| `mask_age` | `30` (INT) or `"30-39"` (STRING) |
+| `mask_ip` | `192.168.*.*` |
+| `mask_credit_card` | `**** **** **** 1234` |
+| `mask_phone` | `+44 *** *** ****` |
+| `mask_location` | `SW1A` (UK postcode outward code) or `[REDACTED]` |
+| `mask_sensitive` | `[REDACTED]` |
+
+9 policies per catalog cover 25 GDPR + PCI DSS tags plus a catch-all for any unrecognised `class.*` tag. All policies are managed by the DABs governance job and are idempotent.
 
 ### Groups and access governance
 
@@ -56,28 +78,38 @@ Four Entra security groups govern access. Terraform creates them and manages mem
 | Entra group | Databricks role | Purpose |
 |---|---|---|
 | `sg-dbplat-data-platform-admins` | Account admin, metastore owner, workspace ADMIN | Platform operators |
-| `sg-dbplat-data-stewards` | Workspace USER | Data quality and ownership |
-| `sg-dbplat-pii-readers` | Workspace USER | Access to PII-tagged columns |
-| `sg-dbplat-standard-readers` | Workspace USER | Standard read access |
+| `sg-dbplat-data-stewards` | Workspace USER | Data quality and ownership — see unmasked data |
+| `sg-dbplat-pii-readers` | Workspace USER | Access to raw PII-tagged columns |
+| `sg-dbplat-standard-readers` | Workspace USER | Standard read access — masked data only |
 
-The `data-platform-admins` group is seeded with the owner specified in the `OWNER` secret. Additional members are added in Entra and AIM propagates them to Databricks automatically.
+The `data-platform-admins` group is seeded with the owner specified in the `OWNER` secret.
 
-> **AIM and Terraform**: AIM can race against `terraform apply` when creating the Databricks mirror group for `data_platform_admins`. If an apply fails with "Group already exists", it means AIM synced the group before Terraform could create it. Delete the Databricks group from the account console, then re-run the apply immediately before AIM re-syncs.
+> **AIM and Terraform**: AIM can race against `terraform apply` when creating the Databricks mirror group for `data_platform_admins`. If an apply fails with "Group already exists", delete the Databricks group from the account console, then re-run the apply immediately before AIM re-syncs.
+
+### Data product teams
+
+Teams follow a data mesh model — each domain team owns one service principal and one or more data products (schemas + landing volumes). Adding a data product or a new team requires only a `terraform.tfvars` change:
+
+```hcl
+data_product_teams = {
+  travel = {
+    display_name          = "sp-travel-data-products"
+    sp_github_repo        = "juliandicker/tfl-disruption-data-pipeline"
+    sp_github_environment = "dev"
+    landing_sources       = ["tfl"]   # /Volumes/landing/raw/tfl/
+    schemas               = ["tfl"]   # bronze.tfl, silver.tfl, gold.tfl
+  }
+  # music = { ... }  # add a second domain team here — gets its own SP and isolation
+}
+```
+
+Each team also gets a SQL warehouse named `<team>-sql-warehouse` (serverless 2X-Small, 10-min auto-stop by default).
 
 ### Landing zone
 
 Landing is a raw file drop zone — CSV, JSON, Parquet, etc. Files are purged automatically after 30 days by an Azure lifecycle policy. No Delta tables are created here.
 
-Each data source gets its own Unity Catalog external volume at `/Volumes/landing/raw/<source>/` with access locked to the principals you specify. Define sources in `terraform.tfvars`:
-
-```hcl
-landing_sources = {
-  salesforce = ["group:sales-engineers"]
-  sap        = ["group:finance-team", "servicePrincipal:<app-id>"]
-}
-```
-
-Adding a new source is a one-line tfvars change — no Terraform code changes needed. Principals can be Databricks account users (`user:name@example.com`), groups (`group:name`), or service principals (`servicePrincipal:<application-id>`).
+Each team source gets its own Unity Catalog external volume at `/Volumes/landing/raw/<source>/` with access locked to the team SP.
 
 ## Prerequisites
 
@@ -151,7 +183,7 @@ These are set at the **environment** level (`dev`) to match the `environment: de
 
 ## Step 3b — Create the GitHub App for cross-repo secret sync
 
-The apply workflow automatically pushes `AZURE_CLIENT_ID` (pipeline SP) and `DATABRICKS_HOST` (workspace URL) to any downstream pipeline repo after each apply. This uses a GitHub App rather than a PAT — no expiry and scoped only to the target repo.
+The apply workflow automatically pushes `AZURE_CLIENT_ID` (team SP) and `DATABRICKS_HOST` (workspace URL) to any downstream pipeline repo after each apply. This uses a GitHub App rather than a PAT — no expiry and scoped only to the target repo.
 
 1. Go to **github.com → profile → Settings → Developer settings → GitHub Apps → New GitHub App**
    - Set any homepage URL (e.g. your GitHub profile)
@@ -165,7 +197,7 @@ The apply workflow automatically pushes `AZURE_CLIENT_ID` (pipeline SP) and `DAT
 
 ## Step 4 — Deploy
 
-Push a commit to `main` that touches anything under `terraform/` and the apply workflow will run. The plan workflow runs automatically on any PR targeting `main`.
+Push a commit to `main` that touches anything under `terraform/`, `governance/`, or `resources/` and the apply workflow will run. The plan workflow runs automatically on any PR targeting `main`.
 
 For a first deploy you can trigger apply manually via GitHub Actions → Terraform Apply → Run workflow.
 
