@@ -69,7 +69,7 @@ Silver and gold carry Unity Catalog column mask policies driven by Databricks Da
 | `mask_location` | `SW1A` (UK postcode outward code) or `[REDACTED]` |
 | `mask_sensitive` | `[REDACTED]` |
 
-9 policies per catalog cover 25 GDPR + PCI DSS tags plus a catch-all for any unrecognised `class.*` tag. All policies are managed by the DABs governance job and are idempotent.
+8 policies per catalog cover 7 specific tag types (email, DOB, age, IP, credit card, phone, location) plus a catch-all that handles all remaining `class.*` tags including names, document IDs, and special-category GDPR data. All policies are managed by the DABs governance job and are idempotent.
 
 ### Groups and access governance
 
