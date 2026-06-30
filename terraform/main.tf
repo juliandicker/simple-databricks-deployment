@@ -119,9 +119,9 @@ resource "databricks_mws_permission_assignment" "this" {
 }
 
 resource "databricks_system_schema" "billing" {
-  provider   = databricks.workspace
-  schema     = "billing"
-  depends_on = [databricks_metastore_assignment.this]
+  provider     = databricks.accounts
+  metastore_id = databricks_metastore.this.id
+  schema       = "billing"
 }
 
 resource "databricks_storage_credential" "this" {
