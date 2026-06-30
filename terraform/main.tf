@@ -1,5 +1,5 @@
 locals {
-  layers               = ["bronze", "silver", "gold"]
+  layers               = ["bronze", "silver", "gold", "admin"]
   zones                = concat(local.layers, ["landing"])  # layers + landing; drives catalogs and external locations
   storage_account_name = replace("${var.prefix}adls", "-", "")
 
@@ -54,9 +54,9 @@ resource "azurerm_storage_management_policy" "landing_purge" {
   }
 }
 
-resource "azurerm_storage_container" "admin" {
-  name               = "admin"
-  storage_account_id = azurerm_storage_account.adls.id
+moved {
+  from = azurerm_storage_container.admin
+  to   = azurerm_storage_container.data["admin"]
 }
 
 resource "azurerm_storage_container" "metastore" {

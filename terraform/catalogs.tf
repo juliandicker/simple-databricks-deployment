@@ -31,47 +31,29 @@ resource "databricks_schema" "default" {
 }
 
 
-resource "databricks_external_location" "admin" {
-  provider        = databricks.workspace
-  name            = "${var.prefix}-admin"
-  url             = "abfss://admin@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
-  credential_name = databricks_storage_credential.this.name
-  force_destroy   = true
-
-  depends_on = [databricks_metastore_assignment.this]
+moved {
+  from = databricks_external_location.admin
+  to   = databricks_external_location.this["admin"]
 }
 
-# Admin catalog — shared governance infrastructure (masking UDFs, platform metrics tables).
-resource "databricks_catalog" "admin" {
-  provider      = databricks.workspace
-  name          = "admin"
-  comment       = "Shared governance infrastructure — masking UDFs and platform metrics tables"
-  storage_root  = "abfss://admin@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
-  force_destroy = true
-
-  depends_on = [databricks_external_location.admin]
+moved {
+  from = databricks_catalog.admin
+  to   = databricks_catalog.this["admin"]
 }
 
 resource "databricks_schema" "admin_shared" {
   provider      = databricks.workspace
-  catalog_name  = databricks_catalog.admin.name
+  catalog_name  = databricks_catalog.this["admin"].name
   name          = "shared"
   force_destroy = true
 }
 
 locals {
-  # All zones get account users navigation access; admin is restricted to data_platform_admins only.
+  # All zones get account users navigation access.
   # Team SPs get schema-level ALL PRIVILEGES via databricks_grants.team_schema in data-product-teams.tf.
-  catalog_grants = merge(
-    { for z in local.zones : z => { account_users = true } },
-    { admin = { account_users = true } }
-  )
+  catalog_grants = { for z in local.zones : z => { account_users = true } }
 
-  # All catalogs in one map: zones → databricks_catalog.this, admin → its own resource.
-  _catalog_name = merge(
-    { for k in local.zones : k => databricks_catalog.this[k].name },
-    { admin = databricks_catalog.admin.name }
-  )
+  _catalog_name = { for k in local.zones : k => databricks_catalog.this[k].name }
 }
 
 resource "databricks_grants" "catalog" {
