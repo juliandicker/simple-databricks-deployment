@@ -62,7 +62,6 @@ jobs:
           echo "workspace_url=https://${WS_URL#https://}" >> $GITHUB_OUTPUT
           echo "workspace_id=$(terraform output -raw workspace_id)" >> $GITHUB_OUTPUT
           echo "pipeline_sp_id=$(terraform output -raw pipeline_sp_application_id)" >> $GITHUB_OUTPUT
-          echo "warehouse_id=$(terraform output -json team_warehouse_ids | jq -r '.data_platform_admins')" >> $GITHUB_OUTPUT
           printf 'exempt_sps=%s\n' "$(terraform output -json team_sp_application_ids | jq -r '[.[] | "`\(.)`"] | join(", ")')" >> $GITHUB_OUTPUT
 
       - name: Substitute SP IDs into governance SQL
@@ -107,13 +106,13 @@ jobs:
       - name: Deploy governance bundle
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
-        run: databricks bundle deploy --var "warehouse_id=${{ steps.tf.outputs.warehouse_id }}"
+        run: databricks bundle deploy
 
       - name: Run governance setup
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
           EXEMPT_SPS: ${{ steps.tf.outputs.exempt_sps }}
-        run: databricks bundle run governance_setup --var "warehouse_id=${{ steps.tf.outputs.warehouse_id }}"
+        run: databricks bundle run governance_setup
 
       # Governed tag ASSIGN grants are not configurable via API and must be applied manually.
       # See docs/governed-tag-grants.md for the step-by-step procedure.
