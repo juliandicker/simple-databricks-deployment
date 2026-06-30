@@ -118,12 +118,6 @@ resource "databricks_mws_permission_assignment" "this" {
   depends_on = [databricks_metastore_assignment.this]
 }
 
-resource "databricks_system_schema" "billing" {
-  provider   = databricks.accounts
-  schema     = "billing"
-  depends_on = [databricks_metastore.this]
-}
-
 resource "databricks_storage_credential" "this" {
   provider = databricks.workspace
   name     = "${var.prefix}-storage-cred"
