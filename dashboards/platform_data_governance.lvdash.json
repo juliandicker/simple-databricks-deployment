@@ -13,9 +13,14 @@
         "FROM\n",
         "  admin.shared.retention_compliance\n",
         "WHERE\n",
-        "  sla_status IN ('STALE', 'NEVER_UPDATED', 'ERROR')\n",
+        "  sla_status IN ('STALE', 'NEVER_UPDATED', 'ERROR', 'NO_COLUMN')\n",
         "ORDER BY\n",
-        "  CASE WHEN sla_status = 'NEVER_UPDATED' THEN 0 WHEN sla_status = 'ERROR' THEN 1 ELSE 2 END,\n",
+        "  CASE\n",
+        "    WHEN sla_status = 'NEVER_UPDATED' THEN 0\n",
+        "    WHEN sla_status = 'NO_COLUMN' THEN 1\n",
+        "    WHEN sla_status = 'ERROR' THEN 2\n",
+        "    ELSE 3\n",
+        "  END,\n",
         "  max_updated_at ASC NULLS FIRST"
       ]
     },
@@ -31,6 +36,7 @@
         "  freshness_status,\n",
         "  retention_status,\n",
         "  sla_status,\n",
+        "  freshness_sla_minutes,\n",
         "  freshness_sla,\n",
         "  max_updated_at\n",
         "FROM\n",
@@ -39,7 +45,7 @@
         "  insertion_status = 'NON-COMPLIANT'\n",
         "  OR freshness_status = 'NON-COMPLIANT'\n",
         "  OR retention_status = 'NON-COMPLIANT'\n",
-        "  OR sla_status IN ('STALE', 'NEVER_UPDATED', 'ERROR')\n",
+        "  OR sla_status IN ('STALE', 'NEVER_UPDATED', 'ERROR', 'NO_COLUMN')\n",
         "ORDER BY\n",
         "  table_catalog,\n",
         "  table_schema"
@@ -80,7 +86,7 @@
           },
           {
             "name": "stale_tables",
-            "expr": "COUNT(CASE WHEN sla_status IN ('STALE', 'NEVER_UPDATED', 'ERROR') THEN 1 END)"
+            "expr": "COUNT(CASE WHEN sla_status IN ('STALE', 'NEVER_UPDATED', 'ERROR', 'NO_COLUMN') THEN 1 END)"
           },
           {
             "name": "never_updated",
@@ -415,6 +421,14 @@
                       "expression": "`retention_status`"
                     },
                     {
+                      "name": "sla_status",
+                      "expression": "`sla_status`"
+                    },
+                    {
+                      "name": "freshness_sla",
+                      "expression": "`freshness_sla`"
+                    },
+                    {
                       "name": "max_updated_at",
                       "expression": "`max_updated_at`"
                     }
@@ -449,6 +463,12 @@
                   },
                   {
                     "fieldName": "retention_status"
+                  },
+                  {
+                    "fieldName": "sla_status"
+                  },
+                  {
+                    "fieldName": "freshness_sla"
                   },
                   {
                     "fieldName": "max_updated_at"
@@ -619,6 +639,18 @@
                       "expression": "`full_table_name`"
                     },
                     {
+                      "name": "sla_status",
+                      "expression": "`sla_status`"
+                    },
+                    {
+                      "name": "freshness_sla_minutes",
+                      "expression": "`freshness_sla_minutes`"
+                    },
+                    {
+                      "name": "freshness_sla",
+                      "expression": "`freshness_sla`"
+                    },
+                    {
                       "name": "max_updated_at",
                       "expression": "`max_updated_at`"
                     }
@@ -630,7 +662,7 @@
             "spec": {
               "version": 2,
               "frame": {
-                "title": "Stale Tables (>24h or NULL)",
+                "title": "Stale Tables (SLA Breached)",
                 "showTitle": true
               },
               "widgetType": "table",
@@ -641,6 +673,9 @@
                   },
                   {
                     "fieldName": "sla_status"
+                  },
+                  {
+                    "fieldName": "freshness_sla_minutes"
                   },
                   {
                     "fieldName": "freshness_sla"
@@ -659,7 +694,7 @@
             "x": 0,
             "y": 2,
             "width": 12,
-            "height": 5
+            "height": 9
           }
         }
       ],
