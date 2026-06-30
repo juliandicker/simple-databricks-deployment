@@ -142,6 +142,38 @@ Optional monthly spend alerts (`databricks_budget`) can be enabled per team or a
 
 > **CI prerequisite**: the `dbplat-simple-github-actions` SP must have the **Billing admin** role in the Databricks Account Console (User Management → Service principals → Roles) in addition to Account admin. Billing admin is required to create budget policies via API.
 
+### Platform metadata column conventions
+
+Every managed table in bronze, silver, and gold must carry three platform metadata columns. Teams are responsible for populating them in their pipelines:
+
+| Column | Type | Set when | Purpose |
+|---|---|---|---|
+| `_inserted_at` | `TIMESTAMP` | First insert only — never updated | Immutable audit trail of when the row arrived in this layer |
+| `_updated_at` | `TIMESTAMP` | Every write | Drives freshness SLA monitoring |
+| `_delete_at` | `TIMESTAMP` | Set to the row's expiry date | Drives Auto TTL — the platform deletes rows after this date |
+
+```python
+# DLT example — all three columns populated by the pipeline
+@dlt.table
+def silver_journeys():
+    return (
+        dlt.read_stream("bronze_journeys")
+        .withColumn("_inserted_at", current_timestamp())  # set once; use merge to preserve on updates
+        .withColumn("_updated_at",  current_timestamp())
+        .withColumn("_delete_at",   date_add(current_timestamp(), 365 * 7))  # 7-year retention
+    )
+```
+
+The platform governance job enforces these conventions:
+
+- **Auto TTL** (`apply_auto_ttl` task) — sweeps all managed tables that have `_delete_at` and applies `ALTER TABLE ... DELETE ROWS 0 DAYS AFTER _delete_at`. Idempotent, runs after every deploy.
+- **Freshness metrics** (`compute_freshness_metrics` task) — queries `MAX(_updated_at)` per table and writes to `admin.shared.freshness_metrics`.
+- **Compliance view** (`admin.shared.retention_compliance`) — surfaces `insertion_status`, `freshness_status`, and `retention_status` for every managed table, plus the actual `max_updated_at` timestamp. Non-compliant tables (missing any column) sort to the top. Query it from any SQL warehouse:
+
+```sql
+SELECT * FROM admin.shared.retention_compliance WHERE retention_status = 'NON-COMPLIANT';
+```
+
 ### Landing zone
 
 Landing is a raw file drop zone — CSV, JSON, Parquet, etc. Files are purged automatically after 30 days by an Azure lifecycle policy. No Delta tables are created here.
