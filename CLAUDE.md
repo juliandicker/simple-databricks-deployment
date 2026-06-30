@@ -164,7 +164,7 @@ All policies exempt `sg-dbplat-pii-readers`, `sg-dbplat-data-stewards`, and team
 
 ### Governed tag grants
 
-Neither `databricks_grants` (provider limitation) nor SQL `GRANT ASSIGN ON TAG` (unsupported syntax) can manage governed tag permissions. Databricks has not implemented governed tag permission management in the REST API or SDK — there is no programmatic option. Grants must be applied manually via the Catalog Explorer UI after each fresh deploy. See `docs/governed-tag-grants.md` for the step-by-step procedure.
+Neither `databricks_grants` (provider limitation) nor SQL `GRANT ASSIGN ON TAG` (unsupported syntax) can manage governed tag permissions. Databricks has not implemented governed tag permission management in the REST API or SDK — there is no programmatic option. Grants must be applied manually after each fresh deploy via **Catalog → Govern → Governed Tags → Account Permissions tab → Grant permissions**. The Account Permissions tab grants `ASSIGN` across all governed tags at once (not per-tag). See `docs/governed-tag-grants.md` for the full procedure.
 
 18 tags covered (US-specific and DE-specific tags are out of scope): `class.name`, `class.email_address`, `class.phone_number`, `class.ip_address`, `class.location`, `class.date_of_birth`, `class.age`, `class.iban_code`, `class.credit_card`, `class.vin`, `class.driver_license`, `class.passport`, `class.uk_nino`, `class.uk_nhs`, `class.ethnicity`, `class.marital_status`, `class.sexual_orientation`, `class.criminal_background`.
 
