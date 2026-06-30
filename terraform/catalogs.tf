@@ -31,15 +31,25 @@ resource "databricks_schema" "default" {
 }
 
 
-# Admin catalog — shared governance infrastructure (masking UDFs).
-# Managed catalog: no ADLS container or external location needed.
+resource "databricks_external_location" "admin" {
+  provider        = databricks.workspace
+  name            = "${var.prefix}-admin"
+  url             = "abfss://admin@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
+  credential_name = databricks_storage_credential.this.name
+  force_destroy   = true
+
+  depends_on = [databricks_metastore_assignment.this]
+}
+
+# Admin catalog — shared governance infrastructure (masking UDFs, platform metrics tables).
 resource "databricks_catalog" "admin" {
   provider      = databricks.workspace
   name          = "admin"
-  comment       = "Shared governance infrastructure — masking UDFs referenced by ABAC policies across data catalogs"
+  comment       = "Shared governance infrastructure — masking UDFs and platform metrics tables"
+  storage_root  = "abfss://admin@${azurerm_storage_account.adls.name}.dfs.core.windows.net/"
   force_destroy = true
 
-  depends_on = [databricks_metastore_assignment.this]
+  depends_on = [databricks_external_location.admin]
 }
 
 resource "databricks_schema" "admin_shared" {

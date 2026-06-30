@@ -54,6 +54,11 @@ resource "azurerm_storage_management_policy" "landing_purge" {
   }
 }
 
+resource "azurerm_storage_container" "admin" {
+  name               = "admin"
+  storage_account_id = azurerm_storage_account.adls.id
+}
+
 resource "azurerm_storage_container" "metastore" {
   name               = "metastore"
   storage_account_id = azurerm_storage_account.adls.id

@@ -124,7 +124,7 @@ Bronze is browse-only for account users — `SELECT` is withheld to enforce pipe
 
 ### Admin catalog
 
-`admin` is a managed catalog (no ADLS container) that holds shared governance infrastructure. The `admin.shared` schema contains the masking UDFs referenced by ABAC policies. All team SPs get `ALL PRIVILEGES + MANAGE` on `admin` so they can deploy and execute functions during the governance setup job.
+`admin` has its own ADLS container (`admin`) and external location, giving it explicit storage independent of the metastore root DAC. The `admin.shared` schema contains masking UDFs referenced by ABAC policies and platform metrics tables (e.g. `freshness_metrics`). All team SPs get `ALL PRIVILEGES + MANAGE` on `admin` so they can deploy and execute functions during the governance setup job.
 
 ### ABAC column masking
 
