@@ -35,6 +35,16 @@ variable "databricks_account_id" {
   description = "Databricks account ID (visible at accounts.azuredatabricks.net)"
 }
 
+variable "platform_budget" {
+  description = "Optional platform-wide monthly spend alert covering all serverless usage on the workspace."
+  type = object({
+    enabled             = optional(bool, false)
+    alert_threshold_usd = optional(number, 1000)
+    alert_email         = optional(string)
+  })
+  default = {}
+}
+
 variable "groups" {
   description = "Entra security groups and their Databricks config. Add a new entry to provision a group end-to-end."
   type = map(object({
@@ -88,12 +98,18 @@ variable "data_product_teams" {
     landing_sources       = optional(list(string), [])
     schemas               = optional(map(list(string)), {})
     platform_team         = optional(bool, false)
+    cost_centre           = optional(string)
     warehouse = optional(object({
       cluster_size     = optional(string, "2X-Small")
       min_num_clusters = optional(number, 1)
       max_num_clusters = optional(number, 1)
       auto_stop_mins   = optional(number, 10)
       serverless       = optional(bool, true)
+    }), {})
+    budget = optional(object({
+      enabled             = optional(bool, false)
+      alert_threshold_usd = optional(number, 100)
+      alert_email         = optional(string)
     }), {})
   }))
   default     = {}

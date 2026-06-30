@@ -42,3 +42,18 @@ output "team_sp_application_ids" {
   description = "Application IDs of all team SPs — used to build the ABAC policy EXCEPT clause."
   value       = { for k, v in databricks_service_principal.teams : k => v.application_id }
 }
+
+output "team_budget_policy_ids" {
+  description = "Databricks budget policy IDs by team key — for validating tag attribution in system.billing.usage.custom_tags."
+  value       = { for k, v in databricks_budget_policy.team : k => v.id }
+}
+
+output "platform_budget_policy_id" {
+  description = "Databricks budget policy ID for platform (data_platform_admins group) serverless activity."
+  value       = databricks_budget_policy.platform.id
+}
+
+output "team_budget_ids" {
+  description = "Databricks monthly spend alert IDs by team key (only populated when budget.enabled = true in tfvars)."
+  value       = { for k, v in databricks_budget.team : k => v.id }
+}
