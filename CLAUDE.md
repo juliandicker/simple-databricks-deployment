@@ -147,7 +147,7 @@ Silver and gold catalogs carry Unity Catalog column mask policies. Policies are 
 
 | Policy | UDF | Tags covered |
 |---|---|---|
-| `mask_name_columns` | `mask_sensitive` | name, vin, driver_license, us_driver_license, passport, us_passport, us_ssn, uk_nino, uk_nhs, de_id_card, de_svnr, de_tax_id, iban_code, us_bank_number, ethnicity, marital_status, sexual_orientation, criminal_background |
+| `mask_sensitive_columns` | `mask_sensitive` | name, vin, driver_license, us_driver_license, passport, us_passport, us_ssn, uk_nino, uk_nhs, de_id_card, de_svnr, de_tax_id, iban_code, us_bank_number, ethnicity, marital_status, sexual_orientation, criminal_background |
 | `mask_email_columns` | `mask_email` | email_address |
 | `mask_dob_columns` | `mask_dob` | date_of_birth |
 | `mask_age_columns` | `mask_age` | age |
