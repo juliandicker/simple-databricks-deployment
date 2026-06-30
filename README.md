@@ -116,7 +116,31 @@ data_product_teams = {
 }
 ```
 
-Each team also gets a SQL warehouse named `<team>-sql-warehouse` (serverless 2X-Small, 10-min auto-stop by default).
+Each team also gets a SQL warehouse named `<team>-sql-warehouse` (serverless 2X-Small, 10-min auto-stop by default), and an optional per-team cost centre override and budget alert:
+
+```hcl
+  travel = {
+    display_name = "sp-travel-data-products"
+    cost_centre  = "CC-210"   # overrides top-level cost_centre on budget policy tags
+    budget = {
+      enabled             = true
+      alert_threshold_usd = 200
+      alert_email         = "alerts@example.com"
+    }
+  }
+```
+
+### Serverless usage policies and cost governance
+
+Every data product team gets a Databricks serverless usage policy (`databricks_budget_policy`) that automatically stamps all their serverless compute activity — notebooks, jobs, pipelines, model serving — with `team` and `cost_centre` tags. These flow into `system.billing.usage.custom_tags`, enabling per-team cost attribution and chargeback without any manual tagging by the team.
+
+A separate platform policy covers serverless compute run directly by members of `sg-dbplat-data-platform-admins`.
+
+Since each team SP is assigned to exactly one policy, Databricks auto-applies it to every new serverless resource that SP creates — no user action needed.
+
+Optional monthly spend alerts (`databricks_budget`) can be enabled per team or at workspace level via tfvars (see Data product teams above). Alerts fire by email when list-price USD spend exceeds the configured threshold and are off by default.
+
+> **CI prerequisite**: the `dbplat-simple-github-actions` SP must have the **Billing admin** role in the Databricks Account Console (User Management → Service principals → Roles) in addition to Account admin. Billing admin is required to create budget policies via API.
 
 ### Landing zone
 
@@ -179,7 +203,6 @@ All values are stored as secrets — none are stored as plaintext variables.
 | `AZURE_SUBSCRIPTION_ID` | Azure subscription ID (`$SUBSCRIPTION_ID`) |
 | `DATABRICKS_ACCOUNT_ID` | Your Databricks account ID (from accounts.azuredatabricks.net) |
 | `OWNER` | Owner tag value — kept secret to avoid leaking personal email in a public repo |
-| `COST_CENTRE` | Cost centre tag value |
 | `DEMO_USER_PASSWORD` | Initial password for the three demo users (Norma Redacta, Seymour Cleartext, Stewart Tagger) |
 | `APP_ID` | Numeric ID of the `dbplat-deployment-bot` GitHub App (used to push outputs to the pipeline repo) |
 | `APP_PRIVATE_KEY` | Private key of the GitHub App in **PKCS#8** format — see note below |
@@ -270,5 +293,5 @@ All resources use the prefix `dbplat-simple` (configurable via the `prefix` vari
 | `project` | `simple-databricks-deployment` |
 | `environment` | `dev` |
 | `owner` | value of `var.owner` |
-| `cost-centre` | value of `var.cost_centre` |
+| `cost-centre` | value of `cost_centre` in `terraform.tfvars` |
 | `managed-by` | `terraform` |

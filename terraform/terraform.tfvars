@@ -1,4 +1,4 @@
-cost_centre = "data-eng"
+cost_centre = "CC-500"
 
 groups = {
   data_platform_admins = {
