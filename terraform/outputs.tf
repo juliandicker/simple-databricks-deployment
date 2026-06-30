@@ -45,12 +45,12 @@ output "team_sp_application_ids" {
 
 output "team_budget_policy_ids" {
   description = "Databricks budget policy IDs by team key — for validating tag attribution in system.billing.usage.custom_tags."
-  value       = { for k, v in databricks_budget_policy.team : k => v.id }
+  value       = { for k, v in databricks_budget_policy.team : k => v.policy_id }
 }
 
 output "platform_budget_policy_id" {
   description = "Databricks budget policy ID for platform (data_platform_admins group) serverless activity."
-  value       = databricks_budget_policy.platform.id
+  value       = databricks_budget_policy.platform.policy_id
 }
 
 output "team_budget_ids" {

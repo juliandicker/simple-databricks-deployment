@@ -66,7 +66,7 @@ resource "databricks_access_control_rule_set" "team_budget_policy" {
   provider = databricks.accounts
   for_each = var.data_product_teams
 
-  name = "accounts/${var.databricks_account_id}/budgetPolicies/${databricks_budget_policy.team[each.key].id}/ruleSets/default"
+  name = "accounts/${var.databricks_account_id}/budgetPolicies/${databricks_budget_policy.team[each.key].policy_id}/ruleSets/default"
 
   grant_rules {
     role       = "roles/budgetPolicy.user"
@@ -87,7 +87,7 @@ resource "databricks_access_control_rule_set" "team_budget_policy" {
 resource "databricks_access_control_rule_set" "platform_budget_policy" {
   provider = databricks.accounts
 
-  name = "accounts/${var.databricks_account_id}/budgetPolicies/${databricks_budget_policy.platform.id}/ruleSets/default"
+  name = "accounts/${var.databricks_account_id}/budgetPolicies/${databricks_budget_policy.platform.policy_id}/ruleSets/default"
 
   grant_rules {
     role       = "roles/budgetPolicy.user"
