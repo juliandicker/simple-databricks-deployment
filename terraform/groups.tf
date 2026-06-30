@@ -133,3 +133,29 @@ resource "databricks_group_member" "service_principals_db" {
   group_id  = databricks_group.this[each.value.group_key].id
   member_id = data.databricks_service_principal.members[each.value.sp_name].id
 }
+
+# ---------------------------------------------------------------------------
+# governed_tags nesting — data_product_sps + data_stewards
+# ---------------------------------------------------------------------------
+# sg-dbplat-governed-tags is the single principal granted ASSIGN on all 18
+# governed tags. Nesting the two sub-groups here means no re-grant is needed
+# when new team SPs or stewards are added — membership is inherited automatically.
+
+resource "azuread_group_member" "governed_tags_nested_entra" {
+  for_each = {
+    data_product_sps = azuread_group.this["data_product_sps"].object_id
+    data_stewards    = azuread_group.this["data_stewards"].object_id
+  }
+  group_object_id  = azuread_group.this["governed_tags"].object_id
+  member_object_id = each.value
+}
+
+resource "databricks_group_member" "governed_tags_nested_db" {
+  provider = databricks.accounts
+  for_each = {
+    data_product_sps = databricks_group.this["data_product_sps"].id
+    data_stewards    = databricks_group.this["data_stewards"].id
+  }
+  group_id  = databricks_group.this["governed_tags"].id
+  member_id = each.value
+}

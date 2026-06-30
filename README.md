@@ -37,7 +37,10 @@ Entra ID security groups (synced to Databricks account via AIM)
 ├── sg-dbplat-data-stewards         → Databricks: workspace USER, ABAC exempt (sees raw PII)
 ├── sg-dbplat-pii-readers           → Databricks: workspace USER, ABAC exempt (sees raw PII)
 ├── sg-dbplat-standard-readers      → Databricks: workspace USER (sees masked data only)
-└── sg-dbplat-data-product-sps      → holds all domain team SPs; granted ASSIGN on governed tags
+├── sg-dbplat-data-product-sps      → holds all domain team SPs (nested inside governed-tags)
+└── sg-dbplat-governed-tags         → single principal for ASSIGN on 18 governed tags
+    ├── sg-dbplat-data-product-sps  (nested)
+    └── sg-dbplat-data-stewards     (nested)
 ```
 
 ### Catalog access
@@ -74,7 +77,7 @@ Silver and gold carry Unity Catalog column mask policies driven by Databricks Da
 
 #### Governed tag ASSIGN permissions — manual step required
 
-After each fresh deploy, `ASSIGN` must be granted on all 25 `class.*` tags to two principals (`sg-dbplat-data-product-sps` and `sg-dbplat-data-stewards`). This cannot be automated — the Unity Catalog REST API does not accept OIDC-derived tokens for tag permission changes.
+After each fresh deploy, `ASSIGN` must be granted on 18 `class.*` tags to one principal (`sg-dbplat-governed-tags`). This cannot be automated — the Unity Catalog REST API does not accept OIDC-derived tokens for tag permission changes. US-specific and DE-specific tags are out of scope.
 
 See **[docs/governed-tag-grants.md](docs/governed-tag-grants.md)** for the full step-by-step procedure.
 
@@ -91,7 +94,10 @@ Four Entra security groups govern access. Terraform creates them and manages mem
 
 The `data-platform-admins` group is seeded with the owner specified in the `OWNER` secret.
 
-A fifth group, `sg-dbplat-data-product-sps`, is managed by Terraform and holds all domain team service principals. It exists solely to simplify governed tag permissions — see below.
+Two additional groups are managed by Terraform to minimise the governed tag ASSIGN grants:
+
+- `sg-dbplat-data-product-sps` — holds all domain team SPs; new SPs are added automatically on each `terraform apply`
+- `sg-dbplat-governed-tags` — nests `data-product-sps` and `data-stewards`; the single principal granted `ASSIGN` on all 18 governed tags
 
 > **AIM and Terraform**: AIM can race against `terraform apply` when creating the Databricks mirror group for `data_platform_admins`. If an apply fails with "Group already exists", delete the Databricks group from the account console, then re-run the apply immediately before AIM re-syncs.
 

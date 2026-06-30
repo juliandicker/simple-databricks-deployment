@@ -147,7 +147,7 @@ Silver and gold catalogs carry Unity Catalog column mask policies. Policies are 
 
 | Policy | UDF | Tags covered |
 |---|---|---|
-| `mask_sensitive_columns` | `mask_sensitive` | name, vin, driver_license, us_driver_license, passport, us_passport, us_ssn, uk_nino, uk_nhs, de_id_card, de_svnr, de_tax_id, iban_code, us_bank_number, ethnicity, marital_status, sexual_orientation, criminal_background |
+| `mask_sensitive_columns` | `mask_sensitive` | name, vin, driver_license, passport, uk_nino, uk_nhs, iban_code, ethnicity, marital_status, sexual_orientation, criminal_background |
 | `mask_email_columns` | `mask_email` | email_address |
 | `mask_dob_columns` | `mask_dob` | date_of_birth |
 | `mask_age_columns` | `mask_age` | age |
@@ -170,9 +170,9 @@ Neither `databricks_grants` (provider limitation) nor SQL `GRANT ASSIGN ON TAG` 
 PATCH /api/2.1/unity-catalog/permissions/tag/{tag-name}
 ```
 
-25 tags covered: the full GDPR + PCI DSS set (`class.name`, `class.email_address`, `class.phone_number`, `class.ip_address`, `class.location`, `class.date_of_birth`, `class.age`, `class.iban_code`, `class.credit_card`, `class.us_bank_number`, `class.vin`, `class.driver_license`, `class.us_driver_license`, `class.passport`, `class.us_passport`, `class.us_ssn`, `class.uk_nino`, `class.uk_nhs`, `class.de_id_card`, `class.de_svnr`, `class.de_tax_id`, `class.ethnicity`, `class.marital_status`, `class.sexual_orientation`, `class.criminal_background`).
+18 tags covered (US-specific and DE-specific tags are out of scope): `class.name`, `class.email_address`, `class.phone_number`, `class.ip_address`, `class.location`, `class.date_of_birth`, `class.age`, `class.iban_code`, `class.credit_card`, `class.vin`, `class.driver_license`, `class.passport`, `class.uk_nino`, `class.uk_nhs`, `class.ethnicity`, `class.marital_status`, `class.sexual_orientation`, `class.criminal_background`.
 
-Principals granted `ASSIGN`: all team SPs + `sg-dbplat-data-stewards`.
+Principal granted `ASSIGN`: `sg-dbplat-governed-tags` (nests `sg-dbplat-data-product-sps` + `sg-dbplat-data-stewards`).
 
 ### DABs governance job
 

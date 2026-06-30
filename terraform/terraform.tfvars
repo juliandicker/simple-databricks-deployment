@@ -20,8 +20,12 @@ groups = {
   data_product_sps = {
     display_name = "sg-dbplat-data-product-sps"
     # No workspace_permission — team SPs register individually via databricks_service_principal.teams.
-    # This group exists solely to hold all domain team SPs so governed tag ASSIGN grants
-    # need only two principals (this group + data_stewards) regardless of team count.
+    # This group holds all domain team SPs; it is nested inside governed_tags below.
+  }
+  governed_tags = {
+    display_name = "sg-dbplat-governed-tags"
+    # Nests data_product_sps + data_stewards — see groups.tf for the membership resources.
+    # Only this group needs to be granted ASSIGN on governed tags (docs/governed-tag-grants.md).
   }
 }
 
