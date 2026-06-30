@@ -77,9 +77,7 @@ Silver and gold carry Unity Catalog column mask policies driven by Databricks Da
 
 #### Governed tag ASSIGN permissions — manual step required
 
-After each fresh deploy, `ASSIGN` must be granted on 18 `class.*` tags to one principal (`sg-dbplat-governed-tags`). This cannot be automated — Databricks has not implemented governed tag permission management in the REST API or SDK. US-specific and DE-specific tags are out of scope.
-
-See **[docs/governed-tag-grants.md](docs/governed-tag-grants.md)** for the full step-by-step procedure.
+After each fresh deploy, `ASSIGN` must be granted once at account level to `sg-dbplat-governed-tags` — this covers all governed tags in one step. This cannot be automated — Databricks has not implemented governed tag permission management in the REST API or SDK. See **[docs/governed-tag-grants.md](docs/governed-tag-grants.md)** for the exact steps.
 
 ### Groups and access governance
 
