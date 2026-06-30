@@ -11,15 +11,16 @@ Azure Resource Group (dbplat-simple-rg)
 │   ├── container: landing    (30-day lifecycle purge on all blobs)
 │   ├── container: bronze
 │   ├── container: silver
-│   └── container: gold
+│   ├── container: gold
+│   └── container: admin      (platform governance tables — freshness_metrics etc.)
 ├── Databricks Access Connector (managed identity → Storage Blob Data Contributor)
 └── Databricks Workspace (Trial SKU — Premium features, 14-day free trial)
 
 Unity Catalog (account-level)
 └── Metastore (owner: data-platform-admins) → assigned to workspace
     ├── Storage Credential (access connector managed identity)
-    ├── External Location: landing / bronze / silver / gold
-    ├── Catalog: admin    → schema: shared → masking UDFs (ABAC)
+    ├── External Location: landing / bronze / silver / gold / admin
+    ├── Catalog: admin    → schema: shared → masking UDFs + platform metrics tables
     ├── Catalog: landing  → schema: raw → volume: <source>  (one per team source)
     ├── Catalog: bronze   → schema: default, <team schemas>
     ├── Catalog: silver   → schema: default, <team schemas>  + ABAC column masks
@@ -164,15 +165,31 @@ def silver_journeys():
     )
 ```
 
-The platform governance job enforces these conventions:
+Two governance jobs enforce these conventions:
 
-- **Auto TTL** (`apply_auto_ttl` task) — sweeps all managed tables that have `_delete_at` and applies `ALTER TABLE ... DELETE ROWS 0 DAYS AFTER _delete_at`. Idempotent, runs after every deploy.
-- **Freshness metrics** (`compute_freshness_metrics` task) — queries `MAX(_updated_at)` per table and writes to `admin.shared.freshness_metrics`.
-- **Compliance view** (`admin.shared.retention_compliance`) — surfaces `insertion_status`, `freshness_status`, and `retention_status` for every managed table, plus the actual `max_updated_at` timestamp. Non-compliant tables (missing any column) sort to the top. Query it from any SQL warehouse:
+**`platform-governance-setup`** — runs on every CI deploy. Creates/replaces masking UDFs and ABAC policies. DDL-only, no schedule needed.
+
+**`platform-governance-daily`** — scheduled daily at 01:00 Europe/London, `pause_status: PAUSED` by default (suitable for demo environments — unpause in the Databricks UI when running live). Tasks:
+
+- **`apply_auto_ttl`** — sweeps all managed tables that have `_delete_at` and applies `ALTER TABLE ... DELETE ROWS 0 DAYS AFTER _delete_at`. Idempotent.
+- **`compute_freshness_metrics`** — queries `MAX(_updated_at)` per table and writes to `admin.shared.freshness_metrics`.
+- **`create_retention_compliance_view`** — rebuilds `admin.shared.retention_compliance`, which surfaces `insertion_status`, `freshness_status`, and `retention_status` for every managed table plus `max_updated_at`. Non-compliant tables sort to the top.
 
 ```sql
 SELECT * FROM admin.shared.retention_compliance WHERE retention_status = 'NON-COMPLIANT';
 ```
+
+### Platform Data Governance dashboard
+
+`dashboards/platform_data_governance.lvdash.json` is an AI/BI dashboard deployed by the DABs bundle. It provides:
+
+- **KPI row** — total tables monitored, fully compliant count, non-compliant count, overall compliance %
+- **Compliance rate by catalog** — bar chart per bronze/silver/gold
+- **Non-compliant tables by schema** — which teams have the most gaps
+- **Non-compliant tables detail** — full list with per-column status
+- **Stale tables page** — tables where `max_updated_at` is older than 24 hours or null
+
+The warehouse is resolved automatically by name (`data_platform_admins-sql-warehouse`) — no hardcoded IDs.
 
 ### Landing zone
 
@@ -265,7 +282,14 @@ The apply workflow automatically pushes `AZURE_CLIENT_ID` (team SP) and `DATABRI
 
 ## Step 4 — Deploy
 
-Push a commit to `main` that touches anything under `terraform/`, `governance/`, or `resources/` and the apply workflow will run. The plan workflow runs automatically on any PR targeting `main`.
+Two workflows handle deployment:
+
+| Workflow | Trigger | What runs |
+|---|---|---|
+| **Terraform Apply + Governance** | Push to `terraform/**` | Full Terraform apply → DABs deploy → governance setup job |
+| **Deploy Governance Bundle** | Push to `governance/**`, `resources/**`, `databricks.yml` | Terraform outputs only (read-only, ~10s) → DABs deploy → governance setup job |
+
+The split means a governance or dashboard change deploys in under 2 minutes without waiting for a full Terraform apply. The plan workflow runs automatically on any PR targeting `main`.
 
 For a first deploy you can trigger apply manually via GitHub Actions → Terraform Apply → Run workflow.
 
