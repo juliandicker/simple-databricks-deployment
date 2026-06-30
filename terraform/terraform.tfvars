@@ -33,9 +33,11 @@ data_product_teams = {
   data_platform_admins = {
     display_name  = "sp-data-platform"
     platform_team = true
+    cost_centre   = "CC-100"
   }
   travel = {
     display_name          = "sp-travel-data-products"
+    cost_centre           = "CC-210"
     sp_github_repo        = "juliandicker/tfl-disruption-data-pipeline"
     sp_github_environment = "dev"
     landing_sources = ["tfl"]
