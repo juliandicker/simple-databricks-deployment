@@ -216,11 +216,11 @@ For a first deploy you can trigger apply manually via GitHub Actions → Terrafo
 
 ### Post-deploy manual steps
 
-Two things require a one-off manual action after each fresh deploy:
+One thing requires a one-off manual action after each fresh deploy:
 
 1. **Governed tag ASSIGN** — grant `sg-dbplat-governed-tags` at account level via Catalog → Govern → Governed Tags → **Account Permissions** tab. See [docs/governed-tag-grants.md](docs/governed-tag-grants.md).
 
-2. **Usage dashboard** — Terraform enables the `system.billing` schema automatically. To import the pre-built dashboard: go to the Databricks **account console → Usage → Consumption → Setup dashboard**, select **Account usage**, Version 2.0, choose the workspace, and click **Import**.
+The account usage dashboard (v2) is created automatically by CI via the Databricks SDK (`UsageDashboardsAPI.create`). No manual import step needed.
 
 ---
 

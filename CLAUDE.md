@@ -174,7 +174,7 @@ Principal granted `ASSIGN`: `sg-dbplat-governed-tags` (nests `sg-dbplat-data-pro
 
 The `system.billing` schema is enabled by `databricks_system_schema.billing` in `main.tf` (workspace provider, depends on metastore assignment). This populates `system.billing.usage` and `system.billing.list_prices`, which back the pre-built account usage dashboard.
 
-The dashboard itself must be imported once per deploy via the account console: **Usage → Consumption → Setup dashboard → Account usage, Version 2.0 → select workspace → Import**. It is a Lakeview dashboard deployed into the chosen workspace and persists until the workspace is destroyed.
+The dashboard is created automatically by the CI `Create account usage dashboard (v2)` step using `AccountClient.usage_dashboards.create()` from the Databricks Python SDK (`dashboard_type=USAGE_DASHBOARD_TYPE_GLOBAL`, `major_version=USAGE_DASHBOARD_MAJOR_VERSION_2`). The step is idempotent — if the dashboard already exists it skips silently. No manual import is needed.
 
 ### DABs governance job
 

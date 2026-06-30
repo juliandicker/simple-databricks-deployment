@@ -64,6 +64,7 @@ jobs:
         run: |
           WS_URL=$(terraform output -raw workspace_url)
           echo "workspace_url=https://${WS_URL#https://}" >> $GITHUB_OUTPUT
+          echo "workspace_id=$(terraform output -raw workspace_id)" >> $GITHUB_OUTPUT
           echo "pipeline_sp_id=$(terraform output -raw pipeline_sp_application_id)" >> $GITHUB_OUTPUT
           echo "warehouse_id=$(terraform output -json team_warehouse_ids | jq -r '.data_platform_admins')" >> $GITHUB_OUTPUT
           printf 'exempt_sps=%s\n' "$(terraform output -json team_sp_application_ids | jq -r '[.[] | "`\(.)`"] | join(", ")')" >> $GITHUB_OUTPUT
@@ -120,3 +121,33 @@ jobs:
 
       # Governed tag ASSIGN grants are not configurable via API and must be applied manually.
       # See docs/governed-tag-grants.md for the step-by-step procedure.
+
+      - name: Create account usage dashboard (v2)
+        env:
+          DATABRICKS_ACCOUNT_ID: ${{ secrets.DATABRICKS_ACCOUNT_ID }}
+          WORKSPACE_ID: ${{ steps.tf.outputs.workspace_id }}
+        run: |
+          pip install databricks-sdk --quiet
+          python - <<'EOF'
+          import os
+          from databricks.sdk import AccountClient
+          from databricks.sdk.service.billing import UsageDashboardType, UsageDashboardMajorVersion
+
+          a = AccountClient(
+              host="https://accounts.azuredatabricks.net",
+              account_id=os.environ["DATABRICKS_ACCOUNT_ID"],
+              token=os.environ["DATABRICKS_TOKEN"],
+          )
+          try:
+              a.usage_dashboards.create(
+                  dashboard_type=UsageDashboardType.USAGE_DASHBOARD_TYPE_GLOBAL,
+                  major_version=UsageDashboardMajorVersion.USAGE_DASHBOARD_MAJOR_VERSION_2,
+                  workspace_id=int(os.environ["WORKSPACE_ID"]),
+              )
+              print("Account usage dashboard (v2) created")
+          except Exception as e:
+              if "already exists" in str(e).lower():
+                  print("Account usage dashboard already exists — skipping")
+              else:
+                  raise
+          EOF
