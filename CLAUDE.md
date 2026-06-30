@@ -143,10 +143,11 @@ Silver and gold catalogs carry Unity Catalog column mask policies. Policies are 
 | `mask_location` | STRING | UK postcode outward code if detectable (`SW1A`); `[REDACTED]` otherwise |
 | `mask_sensitive` | VARIANT | `[REDACTED]` — generic redaction for identifiers and special-category data |
 
-**8 policies per catalog** (silver + gold) in `governance/create_policies.sql`:
+**9 policies per catalog** (silver + gold) in `governance/create_policies.sql`:
 
 | Policy | UDF | Tags covered |
 |---|---|---|
+| `mask_name_columns` | `mask_sensitive` | name, vin, driver_license, us_driver_license, passport, us_passport, us_ssn, uk_nino, uk_nhs, de_id_card, de_svnr, de_tax_id, iban_code, us_bank_number, ethnicity, marital_status, sexual_orientation, criminal_background |
 | `mask_email_columns` | `mask_email` | email_address |
 | `mask_dob_columns` | `mask_dob` | date_of_birth |
 | `mask_age_columns` | `mask_age` | age |
@@ -154,7 +155,8 @@ Silver and gold catalogs carry Unity Catalog column mask policies. Policies are 
 | `mask_credit_card_columns` | `mask_credit_card` | credit_card |
 | `mask_phone_columns` | `mask_phone` | phone_number |
 | `mask_location_columns` | `mask_location` | location |
-| `mask_unknown_sensitive_columns` | `mask_sensitive` | Any `class.*` tag not in the 7 explicit tags above (catch-all covering name, vin, ssn, nhs, ethnicity, etc.) |
+
+Note: `has_tag()` requires a fully qualified tag name — Databricks does not support namespace wildcards (`has_tag('class')`). All 25 GDPR + PCI DSS tags are covered explicitly across these 9 policies.
 
 All policies exempt `sg-dbplat-pii-readers`, `sg-dbplat-data-stewards`, and team SPs. SP IDs are substituted into `{{job.parameters.exempt_sps}}` at CI time before `databricks bundle deploy`.
 
