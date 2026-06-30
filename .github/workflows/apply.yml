@@ -106,7 +106,7 @@ jobs:
       - name: Deploy governance bundle
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
-        run: databricks bundle deploy
+        run: databricks bundle deploy --force
 
       - name: Run governance setup
         env:
