@@ -36,6 +36,11 @@ data_product_teams = {
     display_name  = "sp-data-platform"
     platform_team = true
     cost_centre   = "CC-100"
+    budget = {
+      enabled             = true
+      alert_threshold_usd = 500
+      alert_email         = "julian@redkic.co.uk"
+    }
   }
   travel = {
     display_name          = "sp-travel-data-products"
@@ -49,7 +54,18 @@ data_product_teams = {
       silver  = ["tfl"]
       gold    = ["travel"]
     }
+    budget = {
+      enabled             = true
+      alert_threshold_usd = 200
+      alert_email         = "julian@redkic.co.uk"
+    }
   }
+}
+
+platform_budget = {
+  enabled             = true
+  alert_threshold_usd = 1000
+  alert_email         = "julian@redkic.co.uk"
 }
 
 group_members = {
