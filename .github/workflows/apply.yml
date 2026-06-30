@@ -118,28 +118,5 @@ jobs:
           EXEMPT_SPS: ${{ steps.tf.outputs.exempt_sps }}
         run: databricks bundle run governance_setup --var "warehouse_id=${{ steps.tf.outputs.warehouse_id }}"
 
-      - name: Grant ASSIGN on governed tags
-        working-directory: terraform
-        env:
-          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
-        run: |
-          tags=(
-            class.name class.email_address class.phone_number class.ip_address
-            class.location class.date_of_birth class.age class.iban_code
-            class.credit_card class.us_bank_number class.vin class.driver_license
-            class.us_driver_license class.passport class.us_passport class.us_ssn
-            class.uk_nino class.uk_nhs class.de_id_card class.de_svnr class.de_tax_id
-            class.ethnicity class.marital_status class.sexual_orientation class.criminal_background
-          )
-          mapfile -t sps < <(terraform output -json team_sp_application_ids | jq -r '.[]')
-          principals=("${sps[@]}" "sg-dbplat-data-stewards")
-          for tag in "${tags[@]}"; do
-            for principal in "${principals[@]}"; do
-              echo "Granting ASSIGN on ${tag} to ${principal}"
-              curl --fail-with-body -X PATCH \
-                "${DATABRICKS_HOST}/api/2.1/unity-catalog/permissions/tag/${tag}" \
-                -H "Authorization: Bearer ${DATABRICKS_TOKEN}" \
-                -H "Content-Type: application/json" \
-                -d "{\"changes\":[{\"principal\":\"${principal}\",\"add\":[\"ASSIGN\"]}]}"
-            done
-          done
+      # Governed tag ASSIGN grants are not configurable via API and must be applied manually.
+      # See docs/governed-tag-grants.md for the step-by-step procedure.

@@ -51,6 +51,11 @@ locals {
     for k, v in var.data_product_teams : k => v
     if v.platform_team
   }
+
+  domain_teams = {
+    for k, v in var.data_product_teams : k => v
+    if !v.platform_team
+  }
 }
 
 # One Entra application per team.
@@ -125,6 +130,21 @@ resource "databricks_group_member" "platform_team_admins" {
   provider  = databricks.accounts
   for_each  = local.platform_teams
   group_id  = databricks_group.this["data_platform_admins"].id
+  member_id = databricks_service_principal.teams[each.key].id
+}
+
+# Domain team SPs join sg-dbplat-data-product-sps so governed tag ASSIGN grants
+# need only two principals (this group + data_stewards) regardless of team count.
+resource "azuread_group_member" "data_product_sps_entra" {
+  for_each         = local.domain_teams
+  group_object_id  = azuread_group.this["data_product_sps"].object_id
+  member_object_id = azuread_service_principal.teams[each.key].object_id
+}
+
+resource "databricks_group_member" "data_product_sps_db" {
+  provider  = databricks.accounts
+  for_each  = local.domain_teams
+  group_id  = databricks_group.this["data_product_sps"].id
   member_id = databricks_service_principal.teams[each.key].id
 }
 

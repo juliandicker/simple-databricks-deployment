@@ -17,6 +17,12 @@ groups = {
     display_name         = "sg-dbplat-standard-readers"
     workspace_permission = "USER"
   }
+  data_product_sps = {
+    display_name = "sg-dbplat-data-product-sps"
+    # No workspace_permission — team SPs register individually via databricks_service_principal.teams.
+    # This group exists solely to hold all domain team SPs so governed tag ASSIGN grants
+    # need only two principals (this group + data_stewards) regardless of team count.
+  }
 }
 
 data_product_teams = {
