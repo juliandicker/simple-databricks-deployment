@@ -217,10 +217,42 @@ Default if not set: `1d` (1,440 minutes). The `compute_freshness_metrics` job re
 - **KPI row** — total tables monitored, fully compliant count, non-compliant count, overall compliance %
 - **Compliance rate by catalog** — bar chart per bronze/silver/gold
 - **Non-compliant tables by schema** — which teams have the most gaps
-- **Non-compliant tables detail** — full list with per-column status
-- **Stale tables page** — tables where `max_updated_at` is older than 24 hours or null
+- **Non-compliant tables detail** — full list with per-column status and SLA
+- **Stale tables page** — tables breaching their `platform.freshness_sla` SLA
 
 The warehouse is resolved automatically by name (`data_platform_admins-sql-warehouse`) — no hardcoded IDs.
+
+### Platform Access Audit dashboard
+
+`dashboards/access_audit.lvdash.json` queries `system.access.audit` and provides:
+
+- **KPI row** — PII table access events (7d), unique users (7d), failed auth events (7d), permission changes (30d)
+- **PII access by user** — bar chart showing who is accessing silver/gold data (7d)
+- **PII access trend** — daily access count to catch spikes (7d)
+- **Recent permission changes** — grant/revoke events over 30d
+- **Audit Detail page** — raw PII access log (7d, up to 1,000 rows) + failed auth events (7d)
+
+PII access is tracked via `generateTemporaryTableCredential` events on `silver.*` and `gold.*`.
+
+### GDPR Subject Access Request (SAR) search
+
+`resources/jobs/sar.yml` defines the `platform-sar-search` job. Trigger it manually from the Databricks UI when a data subject requests access to their data.
+
+**How to run:**
+1. Databricks UI → Workflows → `platform-sar-search` → Run now
+2. Set parameter `identifier` to the value to find (e.g. `jane.doe@example.com`)
+3. Optionally set `request_id` to a reference number; auto-generated if blank
+
+The notebook scans every column tagged with a `class.*` governed tag across all silver and gold tables using a case-insensitive match. Results are appended to `admin.shared.sar_results` with a match count per column.
+
+```sql
+-- Check results after the run
+SELECT table_catalog, table_schema, table_name, column_name, tag_name, match_count
+FROM admin.shared.sar_results
+WHERE request_id = '<id>' AND match_count > 0;
+```
+
+`admin.shared.sar_results` is readable only by `sg-dbplat-data-stewards` — not `account users`.
 
 ### Landing zone
 
