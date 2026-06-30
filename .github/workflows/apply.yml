@@ -135,7 +135,8 @@ jobs:
           principals=("${sps[@]}" "sg-dbplat-data-stewards")
           for tag in "${tags[@]}"; do
             for principal in "${principals[@]}"; do
-              curl -sf -X PATCH \
+              echo "Granting ASSIGN on ${tag} to ${principal}"
+              curl -f -X PATCH \
                 "${DATABRICKS_HOST}/api/2.1/unity-catalog/permissions/tag/${tag}" \
                 -H "Authorization: Bearer ${DATABRICKS_TOKEN}" \
                 -H "Content-Type: application/json" \
