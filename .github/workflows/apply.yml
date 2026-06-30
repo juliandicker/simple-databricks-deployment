@@ -120,30 +120,33 @@ jobs:
 
       - name: Create account usage dashboard (v2)
         env:
+          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
           DATABRICKS_ACCOUNT_ID: ${{ secrets.DATABRICKS_ACCOUNT_ID }}
           WORKSPACE_ID: ${{ steps.tf.outputs.workspace_id }}
         run: |
           pip install databricks-sdk --quiet
           python - <<'EOF'
           import os
-          from databricks.sdk import AccountClient
+          from databricks.sdk import AccountClient, WorkspaceClient
           from databricks.sdk.service.billing import UsageDashboardType, UsageDashboardMajorVersion
 
-          a = AccountClient(
-              host="https://accounts.azuredatabricks.net",
-              account_id=os.environ["DATABRICKS_ACCOUNT_ID"],
+          w = WorkspaceClient(
+              host=os.environ["DATABRICKS_HOST"],
               token=os.environ["DATABRICKS_TOKEN"],
           )
-          try:
+          existing = [d for d in w.lakeview.list() if d.display_name and "Account Usage Dashboard V2" in d.display_name]
+          if existing:
+              print(f"Account usage dashboard already exists — skipping ({len(existing)} found)")
+          else:
+              a = AccountClient(
+                  host="https://accounts.azuredatabricks.net",
+                  account_id=os.environ["DATABRICKS_ACCOUNT_ID"],
+                  token=os.environ["DATABRICKS_TOKEN"],
+              )
               a.usage_dashboards.create(
                   dashboard_type=UsageDashboardType.USAGE_DASHBOARD_TYPE_GLOBAL,
                   major_version=UsageDashboardMajorVersion.USAGE_DASHBOARD_MAJOR_VERSION_2,
                   workspace_id=int(os.environ["WORKSPACE_ID"]),
               )
               print("Account usage dashboard (v2) created")
-          except Exception as e:
-              if "already exists" in str(e).lower():
-                  print("Account usage dashboard already exists — skipping")
-              else:
-                  raise
           EOF
