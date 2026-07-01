@@ -75,6 +75,11 @@ jobs:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
         run: databricks bundle deploy --force
 
+      - name: Start SAR app
+        env:
+          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
+        run: databricks apps start platform-sar-app
+
       - name: Deploy SAR app source
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
