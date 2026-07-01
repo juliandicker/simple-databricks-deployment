@@ -236,23 +236,11 @@ PII access is tracked via `generateTemporaryTableCredential` events on `silver.*
 
 ### GDPR Subject Access Request (SAR) search
 
-`resources/jobs/sar.yml` defines the `platform-sar-search` job. Trigger it manually from the Databricks UI when a data subject requests access to their data.
+The `platform-sar-app` Databricks App (`apps/sar_app/`) lets data stewards search all `class.*`-tagged columns in silver interactively. Select one or more identifier types (email, name, DOB, phone, postcode), enter values, and the app returns matching rows across all tagged tables. Name search uses nickname expansion (via the `nicknames` library) plus `WRatio` fuzzy scoring for spelling tolerance.
 
-**How to run:**
-1. Databricks UI → Workflows → `platform-sar-search` → Run now
-2. Set parameter `identifier` to the value to find (e.g. `jane.doe@example.com`)
-3. Optionally set `request_id` to a reference number; auto-generated if blank
+The lineage section shows which downstream tables received data from any matched silver table, using `system.access.table_lineage`.
 
-The notebook scans every column tagged with a `class.*` governed tag across all silver and gold tables using a case-insensitive match. Results are appended to `admin.shared.sar_results` with a match count per column.
-
-```sql
--- Check results after the run
-SELECT table_catalog, table_schema, table_name, column_name, tag_name, match_count
-FROM admin.shared.sar_results
-WHERE request_id = '<id>' AND match_count > 0;
-```
-
-`admin.shared.sar_results` is readable only by `sg-dbplat-data-stewards` — not `account users`.
+Access is restricted to `sg-dbplat-data-stewards` and `sg-dbplat-data-platform-admins`.
 
 ### Landing zone
 
