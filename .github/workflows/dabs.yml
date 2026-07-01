@@ -6,6 +6,8 @@ on:
     paths:
       - "governance/**"
       - "resources/**"
+      - "apps/**"
+      - "dashboards/**"
       - "databricks.yml"
       - ".github/workflows/dabs.yml"
   workflow_dispatch:
@@ -72,6 +74,11 @@ jobs:
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
         run: databricks bundle deploy --force
+
+      - name: Deploy SAR app source
+        env:
+          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
+        run: databricks apps deploy platform-sar-app
 
       - name: Run governance setup
         env:
