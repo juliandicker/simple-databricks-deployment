@@ -165,6 +165,8 @@ The account usage dashboard (v2) is created automatically by CI via the Databric
 
 Go to **GitHub Actions → Terraform Destroy → Run workflow**, then type `destroy-simple` in the confirmation field. The job is skipped entirely if the string doesn't match exactly.
 
+> **SAR app SP grant**: The SAR app gets a new service principal every time the workspace is recreated. After redeploying, update `sar_app_sp_id` in `terraform/terraform.tfvars` with the new application ID (see [docs/sar-app.md](docs/sar-app.md)) and run `terraform apply` to restore `SELECT` on bronze.
+
 > **Storage soft delete**: Azure storage accounts enable blob soft delete by default. After `terraform destroy`, deleted blobs may be retained for up to 7 days, which can prevent the storage account from being fully removed. If you need an immediate clean teardown, disable soft delete before running destroy:
 > ```powershell
 > az storage account blob-service-properties update `
