@@ -75,6 +75,19 @@ jobs:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
         run: databricks bundle deploy --force
 
+      - name: Start SAR app
+        env:
+          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
+        run: |
+          databricks apps start platform-sar-app
+          for i in $(seq 1 20); do
+            STATE=$(databricks apps get platform-sar-app -o json | python3 -c "import sys,json; print(json.load(sys.stdin)['compute_status']['state'])")
+            [ "$STATE" = "RUNNING" ] && break
+            echo "App state: $STATE, waiting 30s ($i/20)..."
+            sleep 30
+          done
+          [ "$STATE" = "RUNNING" ] || { echo "App failed to reach RUNNING state"; exit 1; }
+
       - name: Deploy SAR app source
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
