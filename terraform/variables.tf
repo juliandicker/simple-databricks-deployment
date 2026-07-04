@@ -35,6 +35,12 @@ variable "databricks_account_id" {
   description = "Databricks account ID (visible at accounts.azuredatabricks.net)"
 }
 
+variable "sar_app_sp_id" {
+  type        = string
+  description = "Application ID of the SAR app service principal (auto-created by Databricks Apps). Grants SELECT on bronze. Update when the app is recreated on a fresh workspace deploy."
+  default     = ""
+}
+
 variable "platform_budget" {
   description = "Optional platform-wide monthly spend alert covering all serverless usage on the workspace."
   type = object({

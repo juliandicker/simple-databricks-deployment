@@ -191,4 +191,13 @@ resource "databricks_permissions" "team_warehouse" {
     group_name       = databricks_group.this["data_platform_admins"].display_name
     permission_level = "CAN_MANAGE"
   }
+
+  # SAR app SP needs CAN_USE on the platform warehouse (used as DATABRICKS_WAREHOUSE_ID in the app).
+  dynamic "access_control" {
+    for_each = each.key == "data_platform_admins" && var.sar_app_sp_id != "" ? [1] : []
+    content {
+      service_principal_name = var.sar_app_sp_id
+      permission_level       = "CAN_USE"
+    }
+  }
 }

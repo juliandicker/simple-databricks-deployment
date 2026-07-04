@@ -78,6 +78,16 @@ resource "databricks_grants" "catalog" {
     }
   }
 
+  # SAR app SP needs READ access to bronze to execute upstream bronze queries.
+  # Runs as the app's own SP (not the user) so the SP requires explicit grants.
+  dynamic "grant" {
+    for_each = each.key == "bronze" && var.sar_app_sp_id != "" ? [1] : []
+    content {
+      principal  = var.sar_app_sp_id
+      privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT"]
+    }
+  }
+
   grant {
     principal  = databricks_group.this["data_platform_admins"].display_name
     privileges = ["ALL PRIVILEGES", "MANAGE"]
