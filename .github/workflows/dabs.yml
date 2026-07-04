@@ -75,21 +75,10 @@ jobs:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
         run: databricks bundle deploy --force
 
-      - name: Start SAR app
-        env:
-          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
-        run: databricks apps start platform-sar-app
-
       - name: Deploy SAR app source
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
-        run: |
-          for i in $(seq 1 15); do
-            databricks apps deploy platform-sar-app && break
-            if [ $i -eq 15 ]; then exit 1; fi
-            echo "Pending deployment in progress, waiting 90s (attempt $i/15)..."
-            sleep 90
-          done
+        run: databricks apps deploy platform-sar-app
 
       - name: Run governance setup
         env:
