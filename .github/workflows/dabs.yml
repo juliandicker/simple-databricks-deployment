@@ -50,7 +50,8 @@ jobs:
         run: |
           WS_URL=$(terraform output -raw workspace_url)
           echo "workspace_url=https://${WS_URL#https://}" >> $GITHUB_OUTPUT
-          printf 'exempt_sps=%s\n' "$(terraform output -json team_sp_application_ids | jq -r '[.[] | "`\(.)`"] | join(", ")')" >> $GITHUB_OUTPUT
+          SAR_SP_ID=$(terraform output -raw sar_app_sp_id)
+          printf 'exempt_sps=%s\n' "$(terraform output -json team_sp_application_ids | jq -r --arg sar "$SAR_SP_ID" '([.[] | "`\(.)`"] + (if $sar != "" then ["`\($sar)`"] else [] end)) | join(", ")')" >> $GITHUB_OUTPUT
           echo "platform_sp_application_id=$(terraform output -raw platform_sp_application_id)" >> $GITHUB_OUTPUT
         env:
           ARM_USE_OIDC: "true"

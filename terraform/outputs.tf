@@ -43,6 +43,11 @@ output "team_sp_application_ids" {
   value       = { for k, v in databricks_service_principal.teams : k => v.application_id }
 }
 
+output "sar_app_sp_id" {
+  description = "Application ID of the SAR app SP — also added to the ABAC policy EXCEPT clause, since it must see real (unmasked) values to execute an erasure it already found via the user's own unmasked search."
+  value       = var.sar_app_sp_id
+}
+
 output "team_budget_policy_ids" {
   description = "Databricks budget policy IDs by team key — for validating tag attribution in system.billing.usage.custom_tags."
   value       = { for k, v in databricks_budget_policy.team : k => v.policy_id }
