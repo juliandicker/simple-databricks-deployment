@@ -37,9 +37,14 @@ groups = {
 
 data_product_teams = {
   data_platform_admins = {
-    display_name  = "sp-data-platform"
-    platform_team = true
-    cost_centre   = "CC-100"
+    display_name          = "sp-data-platform"
+    platform_team         = true
+    cost_centre           = "CC-100"
+    sp_github_repo        = "juliandicker/simple-databricks-deployment"
+    sp_github_environment = "dev"
+    schemas = {
+      admin = ["shared", "erasure"]
+    }
     budget = {
       enabled             = true
       alert_threshold_usd = 500

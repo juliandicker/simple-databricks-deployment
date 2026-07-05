@@ -51,6 +51,7 @@ jobs:
           WS_URL=$(terraform output -raw workspace_url)
           echo "workspace_url=https://${WS_URL#https://}" >> $GITHUB_OUTPUT
           printf 'exempt_sps=%s\n' "$(terraform output -json team_sp_application_ids | jq -r '[.[] | "`\(.)`"] | join(", ")')" >> $GITHUB_OUTPUT
+          echo "platform_sp_application_id=$(terraform output -raw platform_sp_application_id)" >> $GITHUB_OUTPUT
         env:
           ARM_USE_OIDC: "true"
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -92,7 +93,27 @@ jobs:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
         run: databricks apps deploy platform-sar-app
 
+      # governance_setup deploys tables/UDFs into schemas the data_platform_admins
+      # team owns (admin.shared, admin.erasure) — run it as that team's own SP
+      # (sp-data-platform), not the bootstrap deploy identity, so it's subject to
+      # the exact same schema grants any other data product team's pipeline would
+      # be. This is the same deploy-vs-execute split the SAR app steps above use
+      # (bootstrap identity deploys/starts the app; the app runs as its own SP).
+      - name: Azure login as data platform team (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.tf.outputs.platform_sp_application_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Exchange platform team token for Databricks token
+        run: |
+          echo "PLATFORM_DATABRICKS_TOKEN=$(az account get-access-token \
+            --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
+            --query accessToken -o tsv)" >> $GITHUB_ENV
+
       - name: Run governance setup
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
+          DATABRICKS_TOKEN: ${{ env.PLATFORM_DATABRICKS_TOKEN }}
         run: databricks bundle run governance_setup

@@ -101,7 +101,11 @@ resource "databricks_schema" "team" {
 
 resource "databricks_grants" "team_schema" {
   provider = databricks.workspace
-  for_each = local.team_layer_schemas
+  # admin.erasure is excluded here — it needs an extra grant (data stewards, read-only)
+  # that a single-grant-per-schema generic resource can't express, and databricks_grants
+  # is authoritative per securable, so it gets its own combined resource in catalogs.tf
+  # (databricks_grants.admin_erasure) instead of fighting this one over the same schema.
+  for_each = { for k, v in local.team_layer_schemas : k => v if !(v.layer == "admin" && v.schema == "erasure") }
   schema   = "${each.value.layer}.${each.value.schema}"
 
   grant {

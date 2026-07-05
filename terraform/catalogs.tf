@@ -41,11 +41,13 @@ moved {
   to   = databricks_catalog.this["admin"]
 }
 
-resource "databricks_schema" "admin_shared" {
-  provider      = databricks.workspace
-  catalog_name  = databricks_catalog.this["admin"].name
-  name          = "shared"
-  force_destroy = true
+# admin.shared is now owned by the data_platform_admins team like any other
+# team schema (see data-product-teams.tf) — the platform team dogfoods the
+# same schema/grant mechanism every domain team uses, rather than getting a
+# bespoke Terraform resource + a blanket catalog-wide grant no other team gets.
+moved {
+  from = databricks_schema.admin_shared
+  to   = databricks_schema.team["data_platform_admins-admin-shared"]
 }
 
 locals {
@@ -69,15 +71,6 @@ resource "databricks_grants" "catalog" {
     }
   }
 
-  # Team SPs get full ownership of admin so they can deploy and execute shared functions (masking UDFs).
-  dynamic "grant" {
-    for_each = each.key == "admin" ? var.data_product_teams : {}
-    content {
-      principal  = databricks_service_principal.teams[grant.key].application_id
-      privileges = ["ALL PRIVILEGES", "MANAGE"]
-    }
-  }
-
   # SAR app SP needs READ access to bronze to execute upstream bronze queries.
   # Runs as the app's own SP (not the user) so the SP requires explicit grants.
   dynamic "grant" {
@@ -88,10 +81,46 @@ resource "databricks_grants" "catalog" {
     }
   }
 
+  # SAR app SP needs to execute the confirmed erasure delete across any
+  # team's silver/gold tables — no single non-admin principal has that
+  # right today, since each team SP only owns its own schemas.
+  dynamic "grant" {
+    for_each = contains(["silver", "gold"], each.key) && var.sar_app_sp_id != "" ? [1] : []
+    content {
+      principal  = var.sar_app_sp_id
+      privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT", "MODIFY"]
+    }
+  }
+
   grant {
     principal  = databricks_group.this["data_platform_admins"].display_name
     privileges = ["ALL PRIVILEGES", "MANAGE"]
   }
+}
+
+# admin.erasure holds the erasure audit trail — owned by the data_platform_admins
+# team's SP (same ALL PRIVILEGES+MANAGE every team gets on its own schemas), plus
+# data stewards get read-only access to review it. Kept as its own databricks_grants
+# resource (excluded from the generic databricks_grants.team_schema in
+# data-product-teams.tf) since a schema can only have one authoritative grants
+# resource and this one needs an extra principal the generic one doesn't support.
+# No other team gets any access here (unlike admin.shared, which every team can use
+# to reference masking UDFs in their own policies).
+resource "databricks_grants" "admin_erasure" {
+  provider = databricks.workspace
+  schema   = "admin.erasure"
+
+  grant {
+    principal  = databricks_service_principal.teams["data_platform_admins"].application_id
+    privileges = ["ALL PRIVILEGES", "MANAGE"]
+  }
+
+  grant {
+    principal  = databricks_group.this["data_stewards"].display_name
+    privileges = ["SELECT"]
+  }
+
+  depends_on = [databricks_schema.team]
 }
 
 # Governed tag ASSIGN grants are not supported by databricks_grants in the current provider.
