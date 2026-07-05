@@ -23,7 +23,7 @@ terraform apply
 terraform destroy
 ```
 
-There are no lint or test commands — this is pure Terraform/PowerShell with no application code.
+There are no lint or test commands for the Terraform/PowerShell side. The one piece of application code is the SAR app (`apps/sar_app/`, a Streamlit Databricks App) — see [docs/sar-app.md](docs/sar-app.md) for what it does, and its "Local development" section for running it against the real workspace via `databricks apps run-local` (not a mock — requires Databricks CLI ≥ 0.250.0).
 
 ## Triggering CI
 
@@ -216,6 +216,14 @@ This uses a GitHub App (`dbplat-deployment-bot`) instead of a PAT — no expiry,
 The workspace uses `sku = "trial"` in `main.tf`. Trial gives Premium features (including Unity Catalog) with no DBU charges for 14 days per workspace. This suits the deploy-test-destroy cycle used here — each fresh `terraform apply` starts a new 14-day trial.
 
 After 14 days Azure will prompt to upgrade to Premium. If costs appear unexpectedly, check whether a SQL warehouse is running; Terraform creates one per team and they have a 10-minute auto-stop by default.
+
+### SAR app (GDPR search + erasure)
+
+`apps/sar_app/` is a Streamlit Databricks App (`platform-sar-app`) for GDPR Subject Access Requests: search all `class.*`-tagged columns for a subject across bronze/silver/gold, review and confirm erasure, and — while a table's VACUUM retention window still holds the deleted files — undo an erasure via Delta time travel. Full detail in [docs/sar-app.md](docs/sar-app.md). Key points relevant to changes elsewhere in this repo:
+
+- Erasure execution and restore both escalate to the app's own service principal (`var.sar_app_sp_id`), which needs `SELECT`/`MODIFY` on silver and gold (not just `SELECT` on bronze) — see `terraform/catalogs.tf`'s dynamic grants keyed on that variable.
+- The audit trail lives in `admin.erasure` (`requests`/`request_items`/`restorations`), created by `governance/create_erasure_tables.sql` via the same `create_erasure_tables` job task as the other governance SQL — changes to that file deploy on any push touching `governance/**`, no new job task needed for further schema additions there.
+- Erasure is deliberately not wrapped in a native Databricks multi-statement transaction — tables with row filters/column masks (silver and gold both have ABAC masks) cannot participate in one at all. All-or-nothing behavior instead comes from dry-running every table's delete predicate before executing any of them.
 
 ### Key constraint: one metastore per region
 

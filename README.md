@@ -53,7 +53,7 @@ Each functional area has its own doc:
 | [docs/access-and-pii-governance.md](docs/access-and-pii-governance.md) | Catalog grants, ABAC column masking, governed tags, Entra groups/AIM, Access Audit dashboard |
 | [docs/data-lifecycle-governance.md](docs/data-lifecycle-governance.md) | Platform metadata columns, freshness SLAs, Auto TTL/retention, governance jobs, Data Governance dashboard |
 | [docs/data-product-teams.md](docs/data-product-teams.md) | Data mesh team model, SQL warehouses, serverless cost governance/budgets, landing zone |
-| [docs/sar-app.md](docs/sar-app.md) | GDPR Subject Access Request search app, idle auto-stop |
+| [docs/sar-app.md](docs/sar-app.md) | GDPR Subject Access Request search + erasure app (all-or-nothing delete, time-travel restore), idle auto-stop |
 
 ## Prerequisites
 
