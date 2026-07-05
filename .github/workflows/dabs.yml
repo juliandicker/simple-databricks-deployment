@@ -99,12 +99,16 @@ jobs:
       # the exact same schema grants any other data product team's pipeline would
       # be. This is the same deploy-vs-execute split the SAR app steps above use
       # (bootstrap identity deploys/starts the app; the app runs as its own SP).
+      # sp-data-platform only has Databricks-side permissions (no Azure RBAC role
+      # on the subscription — it doesn't need one, it's not managing Azure
+      # resources here), so allow-no-subscriptions avoids azure/login's default
+      # "find an accessible subscription" step, which would otherwise fail.
       - name: Azure login as data platform team (OIDC)
         uses: azure/login@v3
         with:
           client-id: ${{ steps.tf.outputs.platform_sp_application_id }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true
 
       - name: Exchange platform team token for Databricks token
         run: |
