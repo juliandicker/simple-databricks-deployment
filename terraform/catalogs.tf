@@ -100,12 +100,14 @@ resource "databricks_grants" "catalog" {
 
 # admin.erasure holds the erasure audit trail — owned by the data_platform_admins
 # team's SP (same ALL PRIVILEGES+MANAGE every team gets on its own schemas), plus
-# data stewards get read-only access to review it. Kept as its own databricks_grants
-# resource (excluded from the generic databricks_grants.team_schema in
-# data-product-teams.tf) since a schema can only have one authoritative grants
-# resource and this one needs an extra principal the generic one doesn't support.
-# No other team gets any access here (unlike admin.shared, which every team can use
-# to reference masking UDFs in their own policies).
+# data stewards get read-only access to review it, plus the SAR app SP gets
+# SELECT+MODIFY since it's the one actually writing requests/request_items rows
+# during execution. Kept as its own databricks_grants resource (excluded from
+# the generic databricks_grants.team_schema in data-product-teams.tf) since a
+# schema can only have one authoritative grants resource and this one needs
+# extra principals the generic one doesn't support. No other team gets any
+# access here (unlike admin.shared, which every team can use to reference
+# masking UDFs in their own policies).
 resource "databricks_grants" "admin_erasure" {
   provider = databricks.workspace
   schema   = "admin.erasure"
@@ -118,6 +120,43 @@ resource "databricks_grants" "admin_erasure" {
   grant {
     principal  = databricks_group.this["data_stewards"].display_name
     privileges = ["SELECT"]
+  }
+
+  dynamic "grant" {
+    for_each = var.sar_app_sp_id != "" ? [1] : []
+    content {
+      principal  = var.sar_app_sp_id
+      privileges = ["SELECT", "MODIFY"]
+    }
+  }
+
+  depends_on = [databricks_schema.team]
+}
+
+# admin.shared holds the masking UDFs plus the two SAR-erasure hash UDFs
+# (hash_subject_ref, hash_row_key). Only the owning data_platform_admins team
+# gets ALL PRIVILEGES (domain team SPs don't need any grant here — column
+# mask policy enforcement doesn't require the querying principal to have its
+# own EXECUTE on the masking function). The SAR app SP additionally gets
+# EXECUTE so it can call the two hash UDFs when writing the erasure audit
+# trail. Kept as its own databricks_grants resource for the same reason as
+# admin_erasure — excluded from the generic databricks_grants.team_schema
+# since it needs an extra principal beyond the owning team.
+resource "databricks_grants" "admin_shared" {
+  provider = databricks.workspace
+  schema   = "admin.shared"
+
+  grant {
+    principal  = databricks_service_principal.teams["data_platform_admins"].application_id
+    privileges = ["ALL PRIVILEGES", "MANAGE"]
+  }
+
+  dynamic "grant" {
+    for_each = var.sar_app_sp_id != "" ? [1] : []
+    content {
+      principal  = var.sar_app_sp_id
+      privileges = ["EXECUTE"]
+    }
   }
 
   depends_on = [databricks_schema.team]
