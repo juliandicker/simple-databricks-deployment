@@ -159,7 +159,13 @@ resource "databricks_grants" "admin_shared" {
     }
   }
 
-  depends_on = [databricks_schema.team]
+  # admin.shared was previously managed by databricks_grants.team_schema
+  # (before this schema was excluded from that for_each, above). Without this,
+  # Terraform has no way to know both resources touch the same underlying
+  # securable and runs the old one's destroy concurrently with this one's
+  # create — confirmed by a real apply failure ("permissions ... have to be
+  # [...]" conflict) from exactly that race.
+  depends_on = [databricks_grants.team_schema, databricks_schema.team]
 }
 
 # Governed tag ASSIGN grants are not supported by databricks_grants in the current provider.
