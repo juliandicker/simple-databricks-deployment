@@ -2,7 +2,7 @@
 
 Minimum viable Databricks lakehouse on Azure. One workspace, ADLS Gen2, Unity Catalog (landing raw-file zone + bronze/silver/gold Delta layers), deployed entirely via Terraform with OIDC auth and no stored secrets.
 
-This is the **infra** half of a two-repo split. It owns everything Terraform-manageable — the workspace, storage, metastore, Unity Catalog catalogs/schemas/grants, groups, and data-mesh team service principals. ABAC masking policies, GDPR audit tables, the SAR app, and the DABs jobs that maintain them live in [`databricks-platform-governance`](https://github.com/juliandicker/databricks-platform-governance), which has no Terraform of its own — see "Governance repo" below for how the two connect. The split exists so a future, differently-architected infra project (e.g. VNet-injected) can reuse the same governance repo unchanged.
+This is the **infra** half of a two-repo split — everything Terraform-manageable lives here. See [`databricks-platform-governance`](https://github.com/juliandicker/databricks-platform-governance) for everything else, and "Governance repo" below for how the two connect.
 
 ## Architecture
 
@@ -22,14 +22,12 @@ Unity Catalog (account-level)
 └── Metastore (owner: data-platform-admins) → assigned to workspace
     ├── Storage Credential (access connector managed identity)
     ├── External Location: landing / bronze / silver / gold / admin
-    ├── Catalog: admin    → schemas: shared / erasure / access / lineage_cache (shells created
-    │                        here; masking UDFs, ABAC policies, and audit tables populated by
-    │                        databricks-platform-governance's jobs)
+    ├── Catalog: admin    → schemas: shared / erasure / access / lineage_cache (shells only —
+    │                        contents are databricks-platform-governance's concern)
     ├── Catalog: landing  → schema: raw → volume: <source>  (one per team source)
     ├── Catalog: bronze   → schema: default, <team schemas>
-    ├── Catalog: silver   → schema: default, <team schemas>  + ABAC column masks (policy
-    │                        definitions live in databricks-platform-governance)
-    └── Catalog: gold     → schema: default, <team schemas>  + ABAC column masks (ditto)
+    ├── Catalog: silver   → schema: default, <team schemas>  + ABAC column masks
+    └── Catalog: gold     → schema: default, <team schemas>  + ABAC column masks
 
 Data product teams (one entry per domain in terraform.tfvars)
 └── travel
@@ -44,8 +42,7 @@ Entra ID security groups (synced to Databricks account via AIM)
 ├── sg-dbplat-pii-readers           → Databricks: workspace USER, ABAC exempt (sees raw PII)
 ├── sg-dbplat-standard-readers      → Databricks: workspace USER (sees masked data only)
 ├── sg-dbplat-data-product-sps      → every domain team SP, sp-data-platform, and the SAR app's
-│                                      own SP — nested inside governed-tags, and referenced by
-│                                      name as the ABAC mask-exemption group in the governance repo
+│                                      own SP (nested inside governed-tags)
 └── sg-dbplat-governed-tags         → single principal for ASSIGN on 18 governed tags
     ├── sg-dbplat-data-product-sps  (nested)
     └── sg-dbplat-data-stewards     (nested)
@@ -53,15 +50,7 @@ Entra ID security groups (synced to Databricks account via AIM)
 
 ## Documentation
 
-All docs now live in [`databricks-platform-governance`'s docs/](https://github.com/juliandicker/databricks-platform-governance/tree/main/docs), including topics that describe this repo's own resources (catalog grants, Entra groups/AIM, data mesh teams) — moved there alongside the governance content they're intertwined with, rather than split across both repos:
-
-| Doc | Covers |
-|---|---|
-| `access-and-pii-governance.md` | Catalog grants, ABAC column masking, governed tags, Entra groups/AIM, Access Audit dashboard |
-| `data-lifecycle-governance.md` | Platform metadata columns, freshness SLAs, Auto TTL/retention, governance jobs, Data Governance dashboard |
-| `data-product-teams.md` | Data mesh team model, SQL warehouses, serverless cost governance/budgets, landing zone |
-| `sar-app.md` | GDPR Subject Access Request app |
-| `governed-tag-grants.md` | Manual governed-tag `ASSIGN` grant procedure |
+All docs, including ones covering this repo's own resources, live in [`databricks-platform-governance`'s docs/](https://github.com/juliandicker/databricks-platform-governance/tree/main/docs).
 
 ## Prerequisites
 
@@ -160,9 +149,7 @@ For a first deploy you can trigger apply manually via GitHub Actions → Terrafo
 
 ### Post-deploy manual steps
 
-One thing requires a one-off manual action after each fresh deploy, done from the governance repo (see its docs):
-
-1. **Governed tag ASSIGN** — grant `sg-dbplat-governed-tags` at account level via Catalog → Govern → Governed Tags → **Account Permissions** tab.
+One thing requires a one-off manual action after each fresh deploy — governed tag `ASSIGN` grants for `sg-dbplat-governed-tags`. See the governance repo's docs for the procedure.
 
 The account usage dashboard (v2) is created automatically by this repo's CI via the Databricks SDK (`UsageDashboardsAPI.create`). No manual import step needed.
 
@@ -209,7 +196,7 @@ The local run uses Azure CLI credentials rather than OIDC — no additional conf
 
 ## Governance repo
 
-[`databricks-platform-governance`](https://github.com/juliandicker/databricks-platform-governance) has no Terraform of its own — ABAC masking policies and UDFs, GDPR audit tables, the SAR app, and the DABs jobs that maintain all of it live there, deployed by its own CI authenticated as `sp-data-platform` via OIDC. It's enabled from this repo exactly the way a downstream pipeline repo is (Step 3b above): Terraform creates `sp-data-platform` and its federated credential scoped to that repo (`data_product_teams.data_platform_admins.sp_github_repo` in `terraform.tfvars`), and every apply pushes `AZURE_CLIENT_ID`/`DATABRICKS_HOST` into it as secrets. See that repo's own README/CLAUDE.md for its layout and local dev (the SAR app's `run-sar-app-local.ps1` script now lives there too).
+[`databricks-platform-governance`](https://github.com/juliandicker/databricks-platform-governance) is enabled from this repo exactly the way a downstream pipeline repo is (Step 3b above): Terraform creates `sp-data-platform` and its federated credential scoped to that repo (`data_product_teams.data_platform_admins.sp_github_repo` in `terraform.tfvars`), and every apply pushes `AZURE_CLIENT_ID`/`DATABRICKS_HOST` into it as secrets.
 
 ---
 

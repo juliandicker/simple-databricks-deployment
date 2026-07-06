@@ -126,13 +126,13 @@ Bronze is browse-only for account users — `SELECT` is withheld to enforce pipe
 
 ### Admin catalog
 
-`admin` has its own ADLS container (`admin`) and external location, giving it explicit storage independent of the metastore root DAC. Schema *shells* (`admin.shared`, `admin.erasure`, `admin.access`, `admin.lineage_cache`) are created here by Terraform; their contents (masking UDFs, ABAC policies, audit tables) are populated by `databricks-platform-governance`'s jobs. All team SPs get `ALL PRIVILEGES + MANAGE` on `admin` so the governance repo's jobs can deploy and execute functions there, running as `sp-data-platform`.
+`admin` has its own ADLS container (`admin`) and external location, giving it explicit storage independent of the metastore root DAC. Schema shells (`admin.shared`, `admin.erasure`, `admin.access`, `admin.lineage_cache`) are created here by Terraform; contents are `databricks-platform-governance`'s concern. All team SPs get `ALL PRIVILEGES + MANAGE` on `admin`.
 
-`sg-dbplat-data-product-sps` (every team SP, `sp-data-platform`, and — via a dynamic grant keyed on `var.sar_app_sp_id` — the SAR app's own SP) doubles as the ABAC mask-exemption group the governance repo's policies reference by name. Update `var.sar_app_sp_id` here whenever the SAR app is recreated on a fresh workspace, same as the existing bronze/silver/gold grants that already depend on it.
+`sg-dbplat-data-product-sps` also includes `sp-data-platform` and — via a dynamic grant keyed on `var.sar_app_sp_id` — the SAR app's own SP. Update `var.sar_app_sp_id` here whenever the SAR app is recreated on a fresh workspace, same as the existing bronze/silver/gold grants that depend on it.
 
 ### Governed tag grants
 
-Neither `databricks_grants` (provider limitation) nor SQL `GRANT ASSIGN ON TAG` (unsupported syntax) can manage governed tag permissions — grants must be applied manually after each fresh deploy via **Catalog → Govern → Governed Tags → Account Permissions tab → Grant permissions** (grants `ASSIGN` across all governed tags at once). Full procedure and the 18 covered tags are documented in `databricks-platform-governance`'s `docs/governed-tag-grants.md`. Principal granted `ASSIGN`: `sg-dbplat-governed-tags` (nests `sg-dbplat-data-product-sps` + `sg-dbplat-data-stewards`, both managed here in `groups.tf`/`data-product-teams.tf`).
+`sg-dbplat-governed-tags` (nests `sg-dbplat-data-product-sps` + `sg-dbplat-data-stewards`, both managed here) needs a manual account-level `ASSIGN` grant after each fresh deploy — see `databricks-platform-governance`'s docs for the procedure.
 
 ### Usage dashboard
 
@@ -140,7 +140,7 @@ The dashboard is created automatically by the CI `Create account usage dashboard
 
 ### Governance repo
 
-[`juliandicker/databricks-platform-governance`](https://github.com/juliandicker/databricks-platform-governance) has no Terraform of its own — everything it does (ABAC masking policies and UDFs, audit tables, the SAR app, the DABs jobs that maintain all of it) is DABs + SQL, deployed by its own CI authenticated directly as `sp-data-platform` via OIDC. It's enabled from here exactly the way `tfl-disruption-data-pipeline` is (see "Cross-repo secret sync" below): this repo's Terraform creates `sp-data-platform` and gives it a federated credential scoped to that repo (`data_product_teams.data_platform_admins.sp_github_repo` in `terraform.tfvars`), and `apply.yml` pushes `AZURE_CLIENT_ID`/`DATABRICKS_HOST` into it as secrets after every apply. Nothing here ever triggers a deploy over there — its own push triggers, or a manual `workflow_dispatch`, handle that; its config (`warehouse_id`, `platform_sp_id`) resolves fresh via DABs `lookup:` variables against the live workspace on every deploy, so it never needs a Terraform output beyond the two secrets above.
+[`juliandicker/databricks-platform-governance`](https://github.com/juliandicker/databricks-platform-governance) is enabled from here exactly the way `tfl-disruption-data-pipeline` is (see "Cross-repo secret sync" below): this repo's Terraform creates `sp-data-platform` and gives it a federated credential scoped to that repo (`data_product_teams.data_platform_admins.sp_github_repo` in `terraform.tfvars`), and `apply.yml` pushes `AZURE_CLIENT_ID`/`DATABRICKS_HOST` into it as secrets after every apply. Nothing here triggers a deploy over there.
 
 ### State file location
 
@@ -171,17 +171,13 @@ This uses a GitHub App (`dbplat-deployment-bot`) instead of a PAT — no expiry,
 - `APP_ID` — numeric GitHub App ID
 - `APP_PRIVATE_KEY` — app private key in **PKCS#8** format (`-----BEGIN PRIVATE KEY-----`). GitHub generates keys in PKCS#1; convert before storing: `openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in original.pem | gh secret set APP_PRIVATE_KEY --env dev`
 
-`dbplat-deployment-bot` is scoped to `secrets:write` only, not `actions:write` — it can push secrets but can't trigger a `workflow_dispatch` on the target repos. This is fine: neither target repo needs a fresh trigger from here, since both resolve their own config independently at deploy time (the pipeline repo via its own logic; `databricks-platform-governance` via DABs `lookup:` variables against the live workspace).
+`dbplat-deployment-bot` is scoped to `secrets:write` only, not `actions:write` — it can push secrets but can't trigger a `workflow_dispatch` on the target repos. Neither needs a fresh trigger from here; both resolve their own config independently at deploy time.
 
 ### Workspace SKU: Trial tier
 
 The workspace uses `sku = "trial"` in `main.tf`. Trial gives Premium features (including Unity Catalog) with no DBU charges for 14 days per workspace. This suits the deploy-test-destroy cycle used here — each fresh `terraform apply` starts a new 14-day trial.
 
 After 14 days Azure will prompt to upgrade to Premium. If costs appear unexpectedly, check whether a SQL warehouse is running; Terraform creates one per team and they have a 10-minute auto-stop by default.
-
-### SAR app (GDPR search + erasure)
-
-The SAR app (`platform-sar-app`) lives entirely in `databricks-platform-governance` now — see that repo's `docs/sar-app.md`. Only its Terraform-side dependency remains here: `var.sar_app_sp_id` (the app's auto-created SP) needs updating whenever the app is recreated on a fresh workspace, since `terraform/catalogs.tf`'s bronze/silver/gold grants and `data-product-teams.tf`'s `sg-dbplat-data-product-sps` membership are both keyed on it.
 
 ### Key constraint: one metastore per region
 
