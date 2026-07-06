@@ -130,6 +130,37 @@ resource "databricks_grants" "admin_erasure" {
   depends_on = [databricks_schema.team]
 }
 
+# admin.access holds the SAR Article 15 access-report audit trail — same
+# shape and rationale as admin_erasure above (own databricks_grants resource,
+# excluded from the generic team_schema loop, SAR app SP needs SELECT+MODIFY
+# since it's the one writing requests/request_items rows when a reviewer
+# confirms an access report). No restorations-equivalent principal needed —
+# there's no "undo" concept for a disclosure.
+resource "databricks_grants" "admin_access" {
+  provider = databricks.workspace
+  schema   = "admin.access"
+
+  grant {
+    principal  = databricks_service_principal.teams["data_platform_admins"].application_id
+    privileges = ["ALL PRIVILEGES", "MANAGE"]
+  }
+
+  grant {
+    principal  = databricks_group.this["data_stewards"].display_name
+    privileges = ["SELECT"]
+  }
+
+  dynamic "grant" {
+    for_each = var.sar_app_sp_id != "" ? [1] : []
+    content {
+      principal  = var.sar_app_sp_id
+      privileges = ["SELECT", "MODIFY"]
+    }
+  }
+
+  depends_on = [databricks_schema.team]
+}
+
 # admin.shared holds the masking UDFs plus the two SAR-erasure hash UDFs
 # (hash_subject_ref, hash_row_key). Only the owning data_platform_admins team
 # gets ALL PRIVILEGES (domain team SPs don't need any grant here — column

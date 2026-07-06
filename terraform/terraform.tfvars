@@ -43,7 +43,7 @@ data_product_teams = {
     sp_github_repo        = "juliandicker/simple-databricks-deployment"
     sp_github_environment = "dev"
     schemas = {
-      admin = ["shared", "erasure"]
+      admin = ["shared", "erasure", "access"]
     }
     budget = {
       enabled             = true
