@@ -53,15 +53,15 @@ Entra ID security groups (synced to Databricks account via AIM)
 
 ## Documentation
 
-Each functional area has its own doc:
+All docs now live in [`databricks-platform-governance`'s docs/](https://github.com/juliandicker/databricks-platform-governance/tree/main/docs), including topics that describe this repo's own resources (catalog grants, Entra groups/AIM, data mesh teams) — moved there alongside the governance content they're intertwined with, rather than split across both repos:
 
 | Doc | Covers |
 |---|---|
-| [docs/access-and-pii-governance.md](docs/access-and-pii-governance.md) | Catalog grants, Entra groups/AIM (this repo) — ABAC column masking policy definitions and the Access Audit dashboard now live in `databricks-platform-governance` |
-| [docs/data-lifecycle-governance.md](docs/data-lifecycle-governance.md) | Platform metadata columns, freshness SLAs, retention (this repo) — the governance jobs and Data Governance dashboard that act on them now live in `databricks-platform-governance` |
-| [docs/data-product-teams.md](docs/data-product-teams.md) | Data mesh team model, SQL warehouses, serverless cost governance/budgets, landing zone |
-
-The SAR app, its docs, and the governed-tag-grants procedure moved to [`databricks-platform-governance`'s docs/](https://github.com/juliandicker/databricks-platform-governance/tree/main/docs).
+| `access-and-pii-governance.md` | Catalog grants, ABAC column masking, governed tags, Entra groups/AIM, Access Audit dashboard |
+| `data-lifecycle-governance.md` | Platform metadata columns, freshness SLAs, Auto TTL/retention, governance jobs, Data Governance dashboard |
+| `data-product-teams.md` | Data mesh team model, SQL warehouses, serverless cost governance/budgets, landing zone |
+| `sar-app.md` | GDPR Subject Access Request app |
+| `governed-tag-grants.md` | Manual governed-tag `ASSIGN` grant procedure |
 
 ## Prerequisites
 
