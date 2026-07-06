@@ -1,8 +1,10 @@
 cost_centre = "CC-500"
 
 # SAR app service principal — auto-created by Databricks Apps on first deploy.
-# Update this value if the app is recreated on a fresh workspace (terraform destroy + apply).
-sar_app_sp_id = "2ff5f12c-1058-4812-baaa-ea6b296ddcda"
+# Update this value if the app is recreated on a fresh workspace (terraform destroy + apply),
+# or (as happened during the infra/governance repo split) if the app itself is deleted and
+# recreated under a different deploying bundle.
+sar_app_sp_id = "35270d78-cb8c-4daa-87e0-6eec2fb5d8a7"
 
 # CI/OIDC deploy service principal (dbplat-simple-github-actions) — created by
 # scripts/oidc-setup.ps1, not managed by Terraform. Stable across
