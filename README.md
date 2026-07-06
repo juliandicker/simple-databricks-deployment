@@ -50,7 +50,9 @@ Entra ID security groups (synced to Databricks account via AIM)
 
 ## Documentation
 
-All docs, including ones covering this repo's own resources, live in [`databricks-platform-governance`'s docs/](https://github.com/juliandicker/databricks-platform-governance/tree/main/docs).
+- [`docs/data-product-teams.md`](docs/data-product-teams.md) — data mesh team model, SQL warehouses, serverless cost governance/budgets, landing zone
+
+Everything else, including docs that also touch this repo's own resources (catalog grants, Entra groups/AIM), lives in [`databricks-platform-governance`'s docs/](https://github.com/juliandicker/databricks-platform-governance/tree/main/docs).
 
 ## Prerequisites
 
