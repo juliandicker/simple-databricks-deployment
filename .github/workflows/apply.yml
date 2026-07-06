@@ -1,4 +1,4 @@
-name: Terraform Apply + Governance
+name: Terraform Apply
 
 on:
   push:
@@ -62,13 +62,7 @@ jobs:
           echo "workspace_url=https://${WS_URL#https://}" >> $GITHUB_OUTPUT
           echo "workspace_id=$(terraform output -raw workspace_id)" >> $GITHUB_OUTPUT
           echo "pipeline_sp_id=$(terraform output -raw pipeline_sp_application_id)" >> $GITHUB_OUTPUT
-          SAR_SP_ID=$(terraform output -raw sar_app_sp_id)
-          printf 'exempt_sps=%s\n' "$(terraform output -json team_sp_application_ids | jq -r --arg sar "$SAR_SP_ID" '([.[] | "`\(.)`"] + (if $sar != "" then ["`\($sar)`"] else [] end)) | join(", ")')" >> $GITHUB_OUTPUT
-
-      - name: Substitute SP IDs into governance SQL
-        env:
-          EXEMPT_SPS: ${{ steps.tf.outputs.exempt_sps }}
-        run: sed -i "s|{{job.parameters.exempt_sps}}|${EXEMPT_SPS}|g" governance/create_policies.sql
+          echo "platform_sp_id=$(terraform output -raw platform_sp_application_id)" >> $GITHUB_OUTPUT
 
       - name: Exchange Azure token for Databricks token
         run: |
@@ -91,7 +85,7 @@ jobs:
         with:
           client-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          repositories: tfl-disruption-data-pipeline
+          repositories: tfl-disruption-data-pipeline,databricks-platform-governance
 
       - name: Push outputs to pipeline repo secrets
         env:
@@ -104,19 +98,30 @@ jobs:
             --body "${{ steps.tf.outputs.workspace_url }}" \
             --repo juliandicker/tfl-disruption-data-pipeline
 
-      - name: Deploy governance bundle
+      # databricks-platform-governance has no Terraform of its own — it's
+      # enabled the same way tfl-disruption-data-pipeline is above, just
+      # authenticating as sp-data-platform (platform_sp_id) instead of a
+      # pipeline-specific SP. Its own deploy.yml uses these to deploy the
+      # DABs bundle and run governance_setup directly. Not triggering its
+      # workflow here on purpose — dbplat-deployment-bot is scoped to
+      # secrets:write only (see docs), not actions:write, so it can't call
+      # `gh workflow run` on that repo; and it isn't needed anyway, since
+      # governance's config (warehouse_id, platform_sp_id) resolves fresh
+      # via DABs lookups against the live workspace on every deploy of its
+      # own, regardless of what changed here.
+      - name: Push outputs to governance repo secrets
         env:
-          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
-        run: databricks bundle deploy --force
-
-      - name: Run governance setup
-        env:
-          DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}
-          EXEMPT_SPS: ${{ steps.tf.outputs.exempt_sps }}
-        run: databricks bundle run governance_setup
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh secret set AZURE_CLIENT_ID \
+            --body "${{ steps.tf.outputs.platform_sp_id }}" \
+            --repo juliandicker/databricks-platform-governance
+          gh secret set DATABRICKS_HOST \
+            --body "${{ steps.tf.outputs.workspace_url }}" \
+            --repo juliandicker/databricks-platform-governance
 
       # Governed tag ASSIGN grants are not configurable via API and must be applied manually.
-      # See docs/governed-tag-grants.md for the step-by-step procedure.
+      # See the governance repo's docs/governed-tag-grants.md for the step-by-step procedure.
 
       - name: Create account usage dashboard (v2)
         env:
