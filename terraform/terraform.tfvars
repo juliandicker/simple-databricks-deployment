@@ -4,6 +4,15 @@ cost_centre = "CC-500"
 # Update this value if the app is recreated on a fresh workspace (terraform destroy + apply).
 sar_app_sp_id = "2ff5f12c-1058-4812-baaa-ea6b296ddcda"
 
+# CI/OIDC deploy service principal (dbplat-simple-github-actions) — created by
+# scripts/oidc-setup.ps1, not managed by Terraform. Stable across
+# destroy/apply cycles (unlike sar_app_sp_id) since it's an Azure AD app
+# registration, not something Databricks Apps recreates. Only used to grant
+# it the servicePrincipal.user role on sp-data-platform (see
+# databricks_access_control_rule_set.ci_deploy_sp_can_use_platform_sp in
+# data-product-teams.tf) — never direct data-plane access.
+ci_deploy_sp_id = "46c06417-ca50-4320-9465-1b7ff082587f"
+
 groups = {
   data_platform_admins = {
     display_name         = "sg-dbplat-data-platform-admins"

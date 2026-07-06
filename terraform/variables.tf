@@ -41,6 +41,12 @@ variable "sar_app_sp_id" {
   default     = ""
 }
 
+variable "ci_deploy_sp_id" {
+  type        = string
+  description = "Application ID of the dbplat-simple-github-actions CI/OIDC deploy service principal (created manually by scripts/oidc-setup.ps1, not managed by Terraform). Grants it the account-level 'Service Principal User' role (roles/servicePrincipal.user) on the data_platform_admins team's SP via databricks_access_control_rule_set — confirmed required by a real deploy failure: 'Cannot bind the service principal provided in run_as field (sp-data-platform) to the job. The user creating or updating the job must have servicePrincipal.user role on the service principal.' Purely an act-as grant, not data-plane access — this identity still can't read/write anything the governance/lineage-cache jobs touch, it can only cause them to run as sp-data-platform."
+  default     = ""
+}
+
 variable "platform_budget" {
   description = "Optional platform-wide monthly spend alert covering all serverless usage on the workspace."
   type = object({

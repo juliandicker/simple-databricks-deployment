@@ -212,3 +212,29 @@ resource "databricks_permissions" "team_warehouse" {
     }
   }
 }
+
+# Grants dbplat-simple-github-actions (the CI/OIDC deploy identity) the
+# account-level "Service Principal User" role on sp-data-platform — a
+# separate concept from the schema/catalog grants above, and not manageable
+# via databricks_permissions (service principals aren't a supported
+# securable there; confirmed against this provider version's schema).
+# Required for `databricks bundle deploy` to pin sp-data-platform as run_as
+# on governance_setup, governance_daily, and lineage_cache_refresh
+# (resources/jobs/*.yml) when the CI deploy identity is the one deploying —
+# without it, deploy fails with "Cannot bind the service principal provided
+# in run_as field ... must have servicePrincipal.user role", which is
+# exactly the error a real deploy hit before this existed. Purely an act-as
+# grant — dbplat-simple-github-actions still has no data-plane access of
+# its own, it can only cause these jobs to run as sp-data-platform.
+resource "databricks_access_control_rule_set" "ci_deploy_sp_can_use_platform_sp" {
+  provider = databricks.accounts
+  name     = "accounts/${var.databricks_account_id}/servicePrincipals/${databricks_service_principal.teams["data_platform_admins"].application_id}/ruleSets/default"
+
+  dynamic "grant_rules" {
+    for_each = var.ci_deploy_sp_id != "" ? [1] : []
+    content {
+      principals = ["servicePrincipals/${var.ci_deploy_sp_id}"]
+      role       = "roles/servicePrincipal.user"
+    }
+  }
+}
