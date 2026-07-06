@@ -71,21 +71,18 @@ resource "databricks_grants" "catalog" {
     }
   }
 
-  # SAR app SP needs READ access to bronze to execute upstream bronze queries.
-  # Runs as the app's own SP (not the user) so the SP requires explicit grants.
+  # SAR app SP needs read+write on bronze/silver/gold alike — it both finds
+  # upstream bronze PII via lineage tracing and executes the confirmed
+  # erasure delete there, same as silver/gold. Runs as the app's own SP (not
+  # the user) so the SP requires explicit grants; no single non-admin
+  # principal otherwise has cross-team delete rights, since each team SP
+  # only owns its own schemas. (Once bronze-only: a real erasure request
+  # found and confirmed a bronze row for deletion, then failed with
+  # PERMISSION_DENIED on the actual DELETE because bronze granted SELECT
+  # only — the two-phase dry-run check only exercises SELECT, so it can't
+  # catch a missing MODIFY grant before the real delete is attempted.)
   dynamic "grant" {
-    for_each = each.key == "bronze" && var.sar_app_sp_id != "" ? [1] : []
-    content {
-      principal  = var.sar_app_sp_id
-      privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT"]
-    }
-  }
-
-  # SAR app SP needs to execute the confirmed erasure delete across any
-  # team's silver/gold tables — no single non-admin principal has that
-  # right today, since each team SP only owns its own schemas.
-  dynamic "grant" {
-    for_each = contains(["silver", "gold"], each.key) && var.sar_app_sp_id != "" ? [1] : []
+    for_each = contains(["bronze", "silver", "gold"], each.key) && var.sar_app_sp_id != "" ? [1] : []
     content {
       principal  = var.sar_app_sp_id
       privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT", "MODIFY"]
