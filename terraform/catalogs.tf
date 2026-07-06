@@ -199,6 +199,30 @@ resource "databricks_grants" "admin_lineage_cache" {
   depends_on = [databricks_schema.team]
 }
 
+# The SAR app SP needs read access to system.access.table_lineage/column_lineage
+# itself to populate admin.lineage_cache (both the scheduled governance_daily
+# refresh — which runs as the CI deploy identity, already an account admin
+# that bypasses grant checks — and the in-app "refresh lineage cache now"
+# button, which explicitly escalates to the SAR app's own, much narrower SP).
+# Before this grant existed, the manual refresh failed with
+# INSUFFICIENT_PERMISSIONS: "User does not have USE SCHEMA on Schema
+# 'system.access'" — the calling user's own token could always read these
+# system tables directly (that's how the app's lineage queries worked before
+# the admin.lineage_cache migration), but the SP identity never had this
+# granted, since it was never the one doing the reading until now.
+resource "databricks_grants" "system_access" {
+  provider = databricks.workspace
+  schema   = "system.access"
+
+  dynamic "grant" {
+    for_each = var.sar_app_sp_id != "" ? [1] : []
+    content {
+      principal  = var.sar_app_sp_id
+      privileges = ["USE_SCHEMA", "SELECT"]
+    }
+  }
+}
+
 # admin.shared holds the masking UDFs plus the two SAR-erasure hash UDFs
 # (hash_subject_ref, hash_row_key). Only the owning data_platform_admins team
 # gets ALL PRIVILEGES (domain team SPs don't need any grant here — column
