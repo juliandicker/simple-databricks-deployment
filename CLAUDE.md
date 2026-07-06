@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo does
 
-Deploys a minimum-viable Databricks lakehouse on Azure via Terraform: one Trial-tier workspace, ADLS Gen2 storage, Unity Catalog metastore, and a landing zone backed by Unity Catalog external volumes. Auth throughout is OIDC — no stored secrets anywhere.
+Deploys a minimum-viable Databricks lakehouse on Azure via Terraform: one Trial-tier workspace, ADLS Gen2 storage, Unity Catalog metastore, a landing zone backed by Unity Catalog external volumes, Unity Catalog catalogs/schemas/grants, groups, and data-mesh team service principals. Auth throughout is OIDC — no stored secrets anywhere.
+
+This is the **infra** half of a two-repo split. The **governance** half — ABAC masking policies, audit tables, the SAR app, and the DABs jobs that maintain them — lives entirely in [`juliandicker/databricks-platform-governance`](https://github.com/juliandicker/databricks-platform-governance), which has no Terraform of its own. See "Governance repo" below for how the two connect. The split exists so a future, differently-architected infra project (e.g. VNet-injected) can reuse the same governance repo unchanged — everything Terraform-manageable stays here; everything DABs/SQL-only lives there.
 
 ## Common commands
 
@@ -23,11 +25,11 @@ terraform apply
 terraform destroy
 ```
 
-There are no lint or test commands for the Terraform/PowerShell side. The one piece of application code is the SAR app (`apps/sar_app/`, a Streamlit Databricks App) — see [docs/sar-app.md](docs/sar-app.md) for what it does, and its "Local development" section for running it against the real workspace via `databricks apps run-local` (not a mock — requires Databricks CLI ≥ 0.250.0).
+There are no lint or test commands for the Terraform/PowerShell side. There is no application code in this repo — the SAR app and all DABs jobs live in `databricks-platform-governance`.
 
 ## Triggering CI
 
-- **Apply**: push to `main` touching `terraform/**`, `governance/**`, `resources/**`, or `.github/workflows/apply.yml`, or manually via Actions → Terraform Apply → Run workflow
+- **Apply**: push to `main` touching `terraform/**` or `.github/workflows/apply.yml`, or manually via Actions → Terraform Apply → Run workflow
 - **Plan**: open a PR targeting `main` — posts the plan as a PR comment
 - **Destroy**: Actions → Terraform Destroy → Run workflow → type `destroy-simple`
 
@@ -120,69 +122,25 @@ Catalog grants follow a data mesh principle — all account users can browse eve
 | `silver` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` on owned schemas only |
 | `gold` | `USE_CATALOG`, `USE_SCHEMA` | `ALL PRIVILEGES` on owned schemas only |
 
-Bronze is browse-only for account users — `SELECT` is withheld to enforce pipeline-only ingestion at the raw layer. Silver and gold carry ABAC column masking (see below).
+Bronze is browse-only for account users — `SELECT` is withheld to enforce pipeline-only ingestion at the raw layer. Silver and gold carry ABAC column masking — policy definitions and masking UDFs live in `databricks-platform-governance`, not here.
 
 ### Admin catalog
 
-`admin` has its own ADLS container (`admin`) and external location, giving it explicit storage independent of the metastore root DAC. The `admin.shared` schema contains masking UDFs referenced by ABAC policies and platform metrics tables (e.g. `freshness_metrics`). All team SPs get `ALL PRIVILEGES + MANAGE` on `admin` so they can deploy and execute functions during the governance setup job.
+`admin` has its own ADLS container (`admin`) and external location, giving it explicit storage independent of the metastore root DAC. Schema *shells* (`admin.shared`, `admin.erasure`, `admin.access`, `admin.lineage_cache`) are created here by Terraform; their contents (masking UDFs, ABAC policies, audit tables) are populated by `databricks-platform-governance`'s jobs. All team SPs get `ALL PRIVILEGES + MANAGE` on `admin` so the governance repo's jobs can deploy and execute functions there, running as `sp-data-platform`.
 
-### ABAC column masking
-
-Silver and gold catalogs carry Unity Catalog column mask policies. Policies are created by the `create_policies` DABs task and call UDFs defined in `admin.shared` (`governance/create_udfs.sql`).
-
-**8 masking UDFs** in `admin.shared`:
-
-| UDF | Input | Masking approach |
-|---|---|---|
-| `mask_email` | STRING | Masks local part + domain label; preserves TLD (`******@******.co.uk`) |
-| `mask_dob` | DATE | Decade of birth (`1985-07-23 → 1980-01-01`), consistent with age bracket |
-| `mask_age` | VARIANT | INT columns: decade floor (`35→30`); STRING columns: bracket (`"30-39"`) |
-| `mask_ip` | STRING | First two octets (`192.168.*.*`); `[REDACTED]` for non-IPv4 |
-| `mask_credit_card` | STRING | Last 4 digits (`**** **** **** 1234`) |
-| `mask_phone` | STRING | Country code only (`+44 *** *** ****`); handles `+44` and `0044` prefixes |
-| `mask_location` | STRING | UK postcode outward code if detectable (`SW1A`); `[REDACTED]` otherwise |
-| `mask_sensitive` | VARIANT | `[REDACTED]` — generic redaction for identifiers and special-category data |
-
-**9 policies per catalog** (silver + gold) in `governance/create_policies.sql`:
-
-| Policy | UDF | Tags covered |
-|---|---|---|
-| `mask_sensitive_columns` | `mask_sensitive` | name, vin, driver_license, passport, uk_nino, uk_nhs, iban_code, ethnicity, marital_status, sexual_orientation, criminal_background |
-| `mask_email_columns` | `mask_email` | email_address |
-| `mask_dob_columns` | `mask_dob` | date_of_birth |
-| `mask_age_columns` | `mask_age` | age |
-| `mask_ip_columns` | `mask_ip` | ip_address |
-| `mask_credit_card_columns` | `mask_credit_card` | credit_card |
-| `mask_phone_columns` | `mask_phone` | phone_number |
-| `mask_location_columns` | `mask_location` | location |
-
-Note: `has_tag()` requires a fully qualified tag name — Databricks does not support namespace wildcards (`has_tag('class')`). All 25 GDPR + PCI DSS tags are covered explicitly across these 9 policies.
-
-All policies exempt `sg-dbplat-pii-readers`, `sg-dbplat-data-stewards`, and team SPs. SP IDs are substituted into `{{job.parameters.exempt_sps}}` at CI time before `databricks bundle deploy`.
-
-**Key constraint**: only one policy may match a column per user — Databricks returns a hard error if two policies match the same column for the same user. Each `class.*` tag appears in exactly one policy's `MATCH COLUMNS` condition.
+`sg-dbplat-data-product-sps` (every team SP, `sp-data-platform`, and — via a dynamic grant keyed on `var.sar_app_sp_id` — the SAR app's own SP) doubles as the ABAC mask-exemption group the governance repo's policies reference by name. Update `var.sar_app_sp_id` here whenever the SAR app is recreated on a fresh workspace, same as the existing bronze/silver/gold grants that already depend on it.
 
 ### Governed tag grants
 
-Neither `databricks_grants` (provider limitation) nor SQL `GRANT ASSIGN ON TAG` (unsupported syntax) can manage governed tag permissions. Databricks has not implemented governed tag permission management in the REST API or SDK — there is no programmatic option. Grants must be applied manually after each fresh deploy via **Catalog → Govern → Governed Tags → Account Permissions tab → Grant permissions**. The Account Permissions tab grants `ASSIGN` across all governed tags at once (not per-tag). See `docs/governed-tag-grants.md` for the full procedure.
-
-18 tags covered (US-specific and DE-specific tags are out of scope): `class.name`, `class.email_address`, `class.phone_number`, `class.ip_address`, `class.location`, `class.date_of_birth`, `class.age`, `class.iban_code`, `class.credit_card`, `class.vin`, `class.driver_license`, `class.passport`, `class.uk_nino`, `class.uk_nhs`, `class.ethnicity`, `class.marital_status`, `class.sexual_orientation`, `class.criminal_background`.
-
-Principal granted `ASSIGN`: `sg-dbplat-governed-tags` (nests `sg-dbplat-data-product-sps` + `sg-dbplat-data-stewards`).
+Neither `databricks_grants` (provider limitation) nor SQL `GRANT ASSIGN ON TAG` (unsupported syntax) can manage governed tag permissions — grants must be applied manually after each fresh deploy via **Catalog → Govern → Governed Tags → Account Permissions tab → Grant permissions** (grants `ASSIGN` across all governed tags at once). Full procedure and the 18 covered tags are documented in `databricks-platform-governance`'s `docs/governed-tag-grants.md`. Principal granted `ASSIGN`: `sg-dbplat-governed-tags` (nests `sg-dbplat-data-product-sps` + `sg-dbplat-data-stewards`, both managed here in `groups.tf`/`data-product-teams.tf`).
 
 ### Usage dashboard
 
 The dashboard is created automatically by the CI `Create account usage dashboard (v2)` step using `AccountClient.usage_dashboards.create()` from the Databricks Python SDK (`dashboard_type=USAGE_DASHBOARD_TYPE_GLOBAL`, `major_version=USAGE_DASHBOARD_MAJOR_VERSION_2`). The API handles enabling the `system.billing` schema internally. The step is idempotent — if the dashboard already exists it skips silently. No manual import is needed.
 
-### DABs governance job
+### Governance repo
 
-`resources/jobs/governance.yml` defines the `platform-governance-setup` job with two tasks:
-
-```
-create_udfs → create_policies
-```
-
-Both are SQL tasks running against a team SQL warehouse. The job is idempotent (`CREATE OR REPLACE`) and runs after every CI apply. It can also be triggered manually from the Databricks UI. Governed tag grants run separately as a CI step after the job completes.
+[`juliandicker/databricks-platform-governance`](https://github.com/juliandicker/databricks-platform-governance) has no Terraform of its own — everything it does (ABAC masking policies and UDFs, audit tables, the SAR app, the DABs jobs that maintain all of it) is DABs + SQL, deployed by its own CI authenticated directly as `sp-data-platform` via OIDC. It's enabled from here exactly the way `tfl-disruption-data-pipeline` is (see "Cross-repo secret sync" below): this repo's Terraform creates `sp-data-platform` and gives it a federated credential scoped to that repo (`data_product_teams.data_platform_admins.sp_github_repo` in `terraform.tfvars`), and `apply.yml` pushes `AZURE_CLIENT_ID`/`DATABRICKS_HOST` into it as secrets after every apply. Nothing here ever triggers a deploy over there — its own push triggers, or a manual `workflow_dispatch`, handle that; its config (`warehouse_id`, `platform_sp_id`) resolves fresh via DABs `lookup:` variables against the live workspace on every deploy, so it never needs a Terraform output beyond the two secrets above.
 
 ### State file location
 
@@ -200,16 +158,20 @@ The SP must also be added as a Databricks account admin manually at `accounts.az
 
 ### Cross-repo secret sync (GitHub App)
 
-After every `terraform apply`, the workflow pushes two outputs to `juliandicker/tfl-disruption-data-pipeline` as GitHub Actions secrets:
+After every `terraform apply`, the workflow pushes outputs as GitHub Actions secrets to two other repos:
 
-| Secret | Terraform output |
-|---|---|
-| `AZURE_CLIENT_ID` | `pipeline_sp_application_id` |
-| `DATABRICKS_HOST` | `workspace_url` |
+| Repo | Secret | Terraform output |
+|---|---|---|
+| `tfl-disruption-data-pipeline` | `AZURE_CLIENT_ID` | `pipeline_sp_application_id` |
+| `tfl-disruption-data-pipeline` | `DATABRICKS_HOST` | `workspace_url` |
+| `databricks-platform-governance` | `AZURE_CLIENT_ID` | `platform_sp_application_id` |
+| `databricks-platform-governance` | `DATABRICKS_HOST` | `workspace_url` |
 
-This uses a GitHub App (`dbplat-deployment-bot`) instead of a PAT — no expiry, scoped only to the target repo with `secrets:write`. Two secrets are required in the `dev` environment:
+This uses a GitHub App (`dbplat-deployment-bot`) instead of a PAT — no expiry, scoped only to the target repos with `secrets:write`. Adding a new target repo requires **manually** adding it to the App's installation repo access (Settings → Applications → Installed GitHub Apps → Configure) — this isn't available via a regular user's `gh`/API token, only through the App's own installation management. Two secrets are required in this repo's `dev` environment:
 - `APP_ID` — numeric GitHub App ID
 - `APP_PRIVATE_KEY` — app private key in **PKCS#8** format (`-----BEGIN PRIVATE KEY-----`). GitHub generates keys in PKCS#1; convert before storing: `openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in original.pem | gh secret set APP_PRIVATE_KEY --env dev`
+
+`dbplat-deployment-bot` is scoped to `secrets:write` only, not `actions:write` — it can push secrets but can't trigger a `workflow_dispatch` on the target repos. This is fine: neither target repo needs a fresh trigger from here, since both resolve their own config independently at deploy time (the pipeline repo via its own logic; `databricks-platform-governance` via DABs `lookup:` variables against the live workspace).
 
 ### Workspace SKU: Trial tier
 
@@ -219,11 +181,7 @@ After 14 days Azure will prompt to upgrade to Premium. If costs appear unexpecte
 
 ### SAR app (GDPR search + erasure)
 
-`apps/sar_app/` is a Streamlit Databricks App (`platform-sar-app`) for GDPR Subject Access Requests: search all `class.*`-tagged columns for a subject across bronze/silver/gold, review and confirm erasure, and — while a table's VACUUM retention window still holds the deleted files — undo an erasure via Delta time travel. Full detail in [docs/sar-app.md](docs/sar-app.md). Key points relevant to changes elsewhere in this repo:
-
-- Erasure execution and restore both escalate to the app's own service principal (`var.sar_app_sp_id`), which needs `SELECT`/`MODIFY` on silver and gold (not just `SELECT` on bronze) — see `terraform/catalogs.tf`'s dynamic grants keyed on that variable.
-- The audit trail lives in `admin.erasure` (`requests`/`request_items`/`restorations`), created by `governance/create_erasure_tables.sql` via the same `create_erasure_tables` job task as the other governance SQL — changes to that file deploy on any push touching `governance/**`, no new job task needed for further schema additions there.
-- Erasure is deliberately not wrapped in a native Databricks multi-statement transaction — tables with row filters/column masks (silver and gold both have ABAC masks) cannot participate in one at all. All-or-nothing behavior instead comes from dry-running every table's delete predicate before executing any of them.
+The SAR app (`platform-sar-app`) lives entirely in `databricks-platform-governance` now — see that repo's `docs/sar-app.md`. Only its Terraform-side dependency remains here: `var.sar_app_sp_id` (the app's auto-created SP) needs updating whenever the app is recreated on a fresh workspace, since `terraform/catalogs.tf`'s bronze/silver/gold grants and `data-product-teams.tf`'s `sg-dbplat-data-product-sps` membership are both keyed on it.
 
 ### Key constraint: one metastore per region
 
