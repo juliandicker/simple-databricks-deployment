@@ -159,6 +159,33 @@ resource "databricks_group_member" "data_product_sps_db" {
   member_id = databricks_service_principal.teams[each.key].id
 }
 
+# sg-dbplat-data-product-sps also doubles as the ABAC mask-exemption group
+# (governance/create_policies.sql's EXCEPT clauses reference it by name) —
+# so unlike the domain-team loop above, sp-data-platform and the SAR app SP
+# need to be members too, even though they're excluded from local.domain_teams
+# (platform_team = true) / aren't a data_product_teams entry at all.
+# Added via separate resources rather than folding into the domain_teams
+# for_each above, to avoid changing that loop's existing, intentional
+# (governed-tag-ASSIGN-specific) scope.
+resource "databricks_group_member" "platform_sp_in_data_product_sps" {
+  provider  = databricks.accounts
+  group_id  = databricks_group.this["data_product_sps"].id
+  member_id = databricks_service_principal.teams["data_platform_admins"].id
+}
+
+data "databricks_service_principal" "sar_app" {
+  provider       = databricks.accounts
+  count          = var.sar_app_sp_id != "" ? 1 : 0
+  application_id = var.sar_app_sp_id
+}
+
+resource "databricks_group_member" "sar_app_sp_in_data_product_sps" {
+  provider  = databricks.accounts
+  count     = var.sar_app_sp_id != "" ? 1 : 0
+  group_id  = databricks_group.this["data_product_sps"].id
+  member_id = data.databricks_service_principal.sar_app[0].id
+}
+
 resource "databricks_grants" "team_landing" {
   provider = databricks.workspace
   for_each = local.team_landing_sources
