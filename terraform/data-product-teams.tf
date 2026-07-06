@@ -101,16 +101,17 @@ resource "databricks_schema" "team" {
 
 resource "databricks_grants" "team_schema" {
   provider = databricks.workspace
-  # admin.erasure, admin.access, and admin.shared are excluded here — all three
-  # need an extra grant (the SAR app SP, plus data stewards for admin.erasure/
-  # admin.access) that a single-grant-per-schema generic resource can't
-  # express, and databricks_grants is authoritative per securable, so they get
-  # their own combined resources in catalogs.tf (databricks_grants.admin_erasure
-  # / admin_access / admin_shared) instead of fighting this one over the same
-  # schema.
+  # admin.erasure, admin.access, admin.lineage_cache, and admin.shared are
+  # excluded here — all four need an extra grant (the SAR app SP, plus data
+  # stewards for admin.erasure/admin.access/admin.lineage_cache) that a
+  # single-grant-per-schema generic resource can't express, and
+  # databricks_grants is authoritative per securable, so they get their own
+  # combined resources in catalogs.tf (databricks_grants.admin_erasure /
+  # admin_access / admin_lineage_cache / admin_shared) instead of fighting
+  # this one over the same schema.
   for_each = {
     for k, v in local.team_layer_schemas : k => v
-    if !(v.layer == "admin" && contains(["erasure", "access", "shared"], v.schema))
+    if !(v.layer == "admin" && contains(["erasure", "access", "lineage_cache", "shared"], v.schema))
   }
   schema = "${each.value.layer}.${each.value.schema}"
 

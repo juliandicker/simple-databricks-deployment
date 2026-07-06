@@ -161,6 +161,44 @@ resource "databricks_grants" "admin_access" {
   depends_on = [databricks_schema.team]
 }
 
+# admin.lineage_cache holds a deduplicated "latest edge" summary of
+# system.access.table_lineage/column_lineage, refreshed incrementally by the
+# governance_daily job (see governance/refresh_lineage_cache.sql) instead of
+# the SAR app re-aggregating those account-wide event logs from scratch on
+# every search — the raw system tables grow with every pipeline run, not just
+# with the number of distinct table relationships, so live per-search
+# aggregation over a real deployment's full history doesn't scale. The SAR
+# app SP reads it for every search (bronze search already requires SP
+# escalation for cross-team access, so lineage-cache reads use the same
+# identity rather than requiring a separate account-users grant on the admin
+# catalog, which is deliberately not given out — see the zones/catalog_grants
+# comment above) and writes it via the in-app "refresh lineage cache now"
+# button.
+resource "databricks_grants" "admin_lineage_cache" {
+  provider = databricks.workspace
+  schema   = "admin.lineage_cache"
+
+  grant {
+    principal  = databricks_service_principal.teams["data_platform_admins"].application_id
+    privileges = ["ALL PRIVILEGES", "MANAGE"]
+  }
+
+  grant {
+    principal  = databricks_group.this["data_stewards"].display_name
+    privileges = ["SELECT"]
+  }
+
+  dynamic "grant" {
+    for_each = var.sar_app_sp_id != "" ? [1] : []
+    content {
+      principal  = var.sar_app_sp_id
+      privileges = ["SELECT", "MODIFY"]
+    }
+  }
+
+  depends_on = [databricks_schema.team]
+}
+
 # admin.shared holds the masking UDFs plus the two SAR-erasure hash UDFs
 # (hash_subject_ref, hash_row_key). Only the owning data_platform_admins team
 # gets ALL PRIVILEGES (domain team SPs don't need any grant here — column
