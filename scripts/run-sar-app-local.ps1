@@ -11,6 +11,12 @@
         start isn't reliably handled by the SQL connector's own request
         timeout, so searching while it's still starting fails with a bare
         `databricks.sql.exc.RequestError`
+      - looks up the deployed lineage_cache_refresh job's numeric ID (not in
+        Terraform outputs — it's a Databricks Asset Bundle resource, and
+        `bundle summary` doesn't expose job IDs directly, so this greps
+        `databricks jobs list` by name instead) and passes it as
+        LINEAGE_CACHE_REFRESH_JOB_ID, since app.yaml's `valueFrom` binding
+        for it only resolves inside a deployed app, same as the warehouse ID
       - fetches a fresh OAuth token (tokens last about an hour; a
         long-running `run-local` process keeps using the token it launched
         with, so restart via this script rather than reusing an old window)
@@ -74,6 +80,15 @@ if ($warehouse.state -ne "RUNNING") {
     databricks warehouses start $warehouseId -p $Profile | Out-Null
 }
 
+Write-Host "Reading the lineage-cache-refresh job ID..."
+$jobs = databricks jobs list -p $Profile -o json | ConvertFrom-Json
+$lineageJob = $jobs | Where-Object { $_.settings.name -eq "platform-lineage-cache-refresh" }
+if (-not $lineageJob) {
+    Write-Error "Could not find the 'platform-lineage-cache-refresh' job. Run 'databricks bundle deploy' first."
+    exit 1
+}
+$lineageJobId = $lineageJob.job_id
+
 Write-Host "Fetching a fresh access token..."
 $token = (databricks auth token -p $Profile | ConvertFrom-Json).access_token
 
@@ -82,6 +97,7 @@ Push-Location $appDir
 try {
     databricks apps run-local -p $Profile `
         --env DATABRICKS_WAREHOUSE_ID=$warehouseId `
+        --env LINEAGE_CACHE_REFRESH_JOB_ID=$lineageJobId `
         --env DATABRICKS_TOKEN=$token
 } finally {
     Pop-Location

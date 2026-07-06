@@ -205,6 +205,29 @@ resource "databricks_grants" "admin_lineage_cache" {
   depends_on = [databricks_schema.team]
 }
 
+# governance_setup, governance_daily, and lineage_cache_refresh (see
+# resources/jobs/*.yml) all pin run_as to the data_platform_admins team's own
+# SP (sp-data-platform, resolved via databricks.yml's platform_sp_id lookup
+# variable) — dbplat-simple-github-actions (the CI/OIDC deploy identity) is
+# meant only to deploy the bundle, never to execute governance SQL itself.
+# That SP already gets ALL PRIVILEGES on admin.lineage_cache above (same
+# pattern every team's own schemas use); it also needs this explicit grant
+# to read system.access.table_lineage/column_lineage to populate the cache
+# — a real, confirmed gap, not a precautionary one: the job failed with
+# INSUFFICIENT_PERMISSIONS ("User does not have USE SCHEMA on Schema
+# 'system.access'") before this existed. Being an account admin (per
+# CLAUDE.md's group-role table) does not automatically bypass this — some
+# system schemas require an explicit grant regardless of admin status.
+resource "databricks_grants" "system_access" {
+  provider = databricks.workspace
+  schema   = "system.access"
+
+  grant {
+    principal  = databricks_service_principal.teams["data_platform_admins"].application_id
+    privileges = ["USE_SCHEMA", "SELECT"]
+  }
+}
+
 # admin.shared holds the masking UDFs plus the two SAR-erasure hash UDFs
 # (hash_subject_ref, hash_row_key). Only the owning data_platform_admins team
 # gets ALL PRIVILEGES (domain team SPs don't need any grant here — column
