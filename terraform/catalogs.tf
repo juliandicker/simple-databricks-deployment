@@ -189,16 +189,21 @@ resource "databricks_grants" "admin_lineage_cache" {
   depends_on = [databricks_schema.team]
 }
 
-# system.access is a Unity Catalog system schema — not enabled by default on
-# a metastore, per Databricks docs. Since databricks_metastore.this is
-# destroyed/recreated every cycle, this must be (re-)enabled every time, not
-# just once. databricks_system_schema is a native Terraform resource for
-# exactly this (workspace-provider scoped, no metastore_id needed).
-resource "databricks_system_schema" "access" {
-  provider = databricks.workspace
-  schema   = "access"
-
-  depends_on = [databricks_metastore_assignment.this]
+# system.access is auto-managed by Databricks (confirmed via `databricks
+# system-schemas list <metastore_id>` — it reports state "MANAGED", the same
+# bucket as billing/compute/etc., not something a databricks_system_schema
+# resource should declare — the provider's docs warn auto-enabled schemas
+# "should not be manually declared", and doing so here produced "Provider
+# produced inconsistent result after apply: Root object was present, but now
+# absent" on every attempt). On a truly fresh metastore, though, it takes a
+# short while after creation to actually materialize — the grant below hit
+# "Schema 'system.access' does not exist" seconds after
+# databricks_metastore_assignment.this completed on a brand-new metastore.
+# time_sleep buys that propagation window without Terraform trying (and
+# failing) to manage the schema's lifecycle itself.
+resource "time_sleep" "wait_for_system_schemas" {
+  depends_on      = [databricks_metastore_assignment.this]
+  create_duration = "60s"
 }
 
 # governance_setup, governance_daily, and lineage_cache_refresh (see
@@ -223,7 +228,7 @@ resource "databricks_grants" "system_access" {
     privileges = ["USE_SCHEMA", "SELECT"]
   }
 
-  depends_on = [databricks_system_schema.access]
+  depends_on = [time_sleep.wait_for_system_schemas]
 }
 
 # admin.shared holds the masking UDFs plus the two SAR-erasure hash UDFs
