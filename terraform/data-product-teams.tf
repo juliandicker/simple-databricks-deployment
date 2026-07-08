@@ -230,14 +230,14 @@ resource "databricks_permissions" "team_warehouse" {
     permission_level = "CAN_MANAGE"
   }
 
-  # SAR app SP needs CAN_USE on the platform warehouse (used as DATABRICKS_WAREHOUSE_ID in the app).
-  dynamic "access_control" {
-    for_each = each.key == "data_platform_admins" && var.sar_app_sp_id != "" ? [1] : []
-    content {
-      service_principal_name = var.sar_app_sp_id
-      permission_level       = "CAN_USE"
-    }
-  }
+  # The SAR app's own CAN_USE on this warehouse (used as
+  # DATABRICKS_WAREHOUSE_ID in the app) used to be granted here via a dynamic
+  # access_control keyed on var.sar_app_sp_id — dead code that duplicated
+  # what databricks-platform-governance's resources/apps/sar.yml already
+  # declares (resources: - sql_warehouse: permission: CAN_USE), which
+  # Databricks Apps grants to the app's own SP automatically on deploy. This
+  # duplicate is also what failed on every fresh workspace, since
+  # var.sar_app_sp_id never exists yet at that point in the cycle.
 }
 
 # Grants dbplat-simple-github-actions (the CI/OIDC deploy identity) the

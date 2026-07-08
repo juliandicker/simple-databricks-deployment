@@ -73,21 +73,14 @@ resource "databricks_grants" "catalog" {
 
   # SAR app SP needs read+write on bronze/silver/gold alike — it both finds
   # upstream bronze PII via lineage tracing and executes the confirmed
-  # erasure delete there, same as silver/gold. Runs as the app's own SP (not
-  # the user) so the SP requires explicit grants; no single non-admin
-  # principal otherwise has cross-team delete rights, since each team SP
-  # only owns its own schemas. (Once bronze-only: a real erasure request
-  # found and confirmed a bronze row for deletion, then failed with
-  # PERMISSION_DENIED on the actual DELETE because bronze granted SELECT
-  # only — the two-phase dry-run check only exercises SELECT, so it can't
-  # catch a missing MODIFY grant before the real delete is attempted.)
-  dynamic "grant" {
-    for_each = contains(["bronze", "silver", "gold"], each.key) && var.sar_app_sp_id != "" ? [1] : []
-    content {
-      principal  = var.sar_app_sp_id
-      privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT", "MODIFY"]
-    }
-  }
+  # erasure delete there, same as silver/gold. This used to be a dynamic
+  # grant here keyed on var.sar_app_sp_id, but that only resolves after the
+  # SAR app has been (re)deployed and its SP id copied back into tfvars —
+  # a chicken-and-egg problem on every fresh workspace. Moved to
+  # databricks-platform-governance's governance_setup job
+  # (governance/grant_sar_app_access.py), which already has the app's SP id
+  # live via ${resources.apps.sar_app.service_principal_client_id} the
+  # moment it deploys, no round-trip through this repo required.
 
   grant {
     principal  = databricks_group.this["data_platform_admins"].display_name
@@ -119,13 +112,10 @@ resource "databricks_grants" "admin_erasure" {
     privileges = ["SELECT"]
   }
 
-  dynamic "grant" {
-    for_each = var.sar_app_sp_id != "" ? [1] : []
-    content {
-      principal  = var.sar_app_sp_id
-      privileges = ["SELECT", "MODIFY"]
-    }
-  }
+  # SAR app SP's SELECT+MODIFY (writes requests/request_items during
+  # execution) moved to databricks-platform-governance's governance_setup job
+  # (governance/grant_sar_app_access.py) — see the bronze/silver/gold comment
+  # above for why.
 
   depends_on = [databricks_schema.team]
 }
@@ -150,13 +140,11 @@ resource "databricks_grants" "admin_access" {
     privileges = ["SELECT"]
   }
 
-  dynamic "grant" {
-    for_each = var.sar_app_sp_id != "" ? [1] : []
-    content {
-      principal  = var.sar_app_sp_id
-      privileges = ["SELECT", "MODIFY"]
-    }
-  }
+  # SAR app SP's SELECT+MODIFY (writes requests/request_items when a
+  # reviewer confirms an access report) moved to
+  # databricks-platform-governance's governance_setup job
+  # (governance/grant_sar_app_access.py) — see the bronze/silver/gold
+  # comment above for why.
 
   depends_on = [databricks_schema.team]
 }
@@ -194,15 +182,23 @@ resource "databricks_grants" "admin_lineage_cache" {
   # which runs under its own job identity, not the app SP. The app itself
   # never needs write access here, or any access to system.access.* at all —
   # see apps/sar_app/lineage.py: trigger_lineage_cache_refresh.
-  dynamic "grant" {
-    for_each = var.sar_app_sp_id != "" ? [1] : []
-    content {
-      principal  = var.sar_app_sp_id
-      privileges = ["SELECT"]
-    }
-  }
+  # (SAR app SP's SELECT here moved to databricks-platform-governance's
+  # governance_setup job (governance/grant_sar_app_access.py) — see the
+  # bronze/silver/gold comment above for why.)
 
   depends_on = [databricks_schema.team]
+}
+
+# system.access is a Unity Catalog system schema — not enabled by default on
+# a metastore, per Databricks docs. Since databricks_metastore.this is
+# destroyed/recreated every cycle, this must be (re-)enabled every time, not
+# just once. databricks_system_schema is a native Terraform resource for
+# exactly this (workspace-provider scoped, no metastore_id needed).
+resource "databricks_system_schema" "access" {
+  provider = databricks.workspace
+  schema   = "access"
+
+  depends_on = [databricks_metastore_assignment.this]
 }
 
 # governance_setup, governance_daily, and lineage_cache_refresh (see
@@ -226,6 +222,8 @@ resource "databricks_grants" "system_access" {
     principal  = databricks_service_principal.teams["data_platform_admins"].application_id
     privileges = ["USE_SCHEMA", "SELECT"]
   }
+
+  depends_on = [databricks_system_schema.access]
 }
 
 # admin.shared holds the masking UDFs plus the two SAR-erasure hash UDFs
@@ -246,13 +244,10 @@ resource "databricks_grants" "admin_shared" {
     privileges = ["ALL PRIVILEGES", "MANAGE"]
   }
 
-  dynamic "grant" {
-    for_each = var.sar_app_sp_id != "" ? [1] : []
-    content {
-      principal  = var.sar_app_sp_id
-      privileges = ["EXECUTE"]
-    }
-  }
+  # SAR app SP's EXECUTE (to call the two hash UDFs when writing the erasure
+  # audit trail) moved to databricks-platform-governance's governance_setup
+  # job (governance/grant_sar_app_access.py) — see the bronze/silver/gold
+  # comment above for why.
 
   # admin.shared was previously managed by databricks_grants.team_schema
   # (before this schema was excluded from that for_each, above). Without this,

@@ -128,7 +128,11 @@ Bronze is browse-only for account users — `SELECT` is withheld to enforce pipe
 
 `admin` has its own ADLS container (`admin`) and external location, giving it explicit storage independent of the metastore root DAC. Schema shells (`admin.shared`, `admin.erasure`, `admin.access`, `admin.lineage_cache`) are created here by Terraform; contents are `databricks-platform-governance`'s concern. All team SPs get `ALL PRIVILEGES + MANAGE` on `admin`.
 
-`sg-dbplat-data-product-sps` also includes `sp-data-platform` and — via a dynamic grant keyed on `var.sar_app_sp_id` — the SAR app's own SP. Update `var.sar_app_sp_id` here whenever the SAR app is recreated on a fresh workspace, same as the existing bronze/silver/gold grants that depend on it.
+`sg-dbplat-data-product-sps` also includes `sp-data-platform` and — via a dynamic grant keyed on `var.sar_app_sp_id` — the SAR app's own SP. Update `var.sar_app_sp_id` here whenever the SAR app is recreated on a fresh workspace. This is now the *only* thing `var.sar_app_sp_id` is used for — the bronze/silver/gold and admin.* schema/catalog grants for the SAR app SP that used to also depend on it have moved to `databricks-platform-governance`'s `governance_setup` job (`governance/grant_sar_app_access.py`), which resolves the app's SP id itself via the Apps API instead of needing it handed over from here.
+
+### system.access
+
+`system.access` is a Unity Catalog system schema (audit logs, table/column lineage) — not enabled by default on any metastore. Since `databricks_metastore.this` is destroyed and recreated on every `destroy`/`apply` cycle, `databricks_system_schema.access` in `catalogs.tf` re-enables it every time as a normal Terraform resource (no CI script needed, unlike `system.billing` below — `databricks_system_schema` doesn't exist for billing since Databricks auto-enables that one). `databricks_grants.system_access` grants `sp-data-platform` `USE_SCHEMA`/`SELECT` on it, needed by the `lineage_cache_refresh` job in `databricks-platform-governance` to read `system.access.table_lineage`/`column_lineage`.
 
 ### Governed tag grants
 
@@ -141,6 +145,8 @@ The dashboard is created automatically by the CI `Create account usage dashboard
 ### Governance repo
 
 [`juliandicker/databricks-platform-governance`](https://github.com/juliandicker/databricks-platform-governance) is enabled from here exactly the way `tfl-disruption-data-pipeline` is (see "Cross-repo secret sync" below): this repo's Terraform creates `sp-data-platform` and gives it a federated credential scoped to that repo (`data_product_teams.data_platform_admins.sp_github_repo` in `terraform.tfvars`), and `apply.yml` pushes `AZURE_CLIENT_ID`/`DATABRICKS_HOST` into it as secrets after every apply. Nothing here triggers a deploy over there.
+
+On a full fresh-workspace cycle, deploy in this order: `simple-databricks-deployment` (this repo) → `databricks-platform-governance` → `tfl-disruption-data-pipeline`. The data platform team owns `databricks-platform-governance`, and data-access-governance concerns that only make sense once the governance repo's own resources (chiefly the SAR app) exist — e.g. its schema/catalog UC grants — are that repo's responsibility, not something this repo's Terraform should reach across to configure. See `databricks-platform-governance`'s `governance/grant_sar_app_access.py` and this file's "Admin catalog" section above.
 
 ### State file location
 
