@@ -132,7 +132,7 @@ jobs:
         with:
           client-id: ${{ steps.tf.outputs.platform_sp_id }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true
 
       - name: Exchange sp-data-platform token for Databricks token
         run: |
