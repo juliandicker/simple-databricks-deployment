@@ -219,13 +219,16 @@ resource "time_sleep" "wait_for_system_schemas" {
 # 'system.access'") before this existed. Being an account admin (per
 # CLAUDE.md's group-role table) does not automatically bypass this — some
 # system schemas require an explicit grant regardless of admin status.
+# Scoped to the whole system catalog (not just system.access) so future
+# governance work (billing, compute, marketplace, etc. system schemas) doesn't
+# need its own one-off grant here every time.
 resource "databricks_grants" "system_access" {
   provider = databricks.workspace
-  schema   = "system.access"
+  catalog  = "system"
 
   grant {
     principal  = databricks_service_principal.teams["data_platform_admins"].application_id
-    privileges = ["USE_SCHEMA", "SELECT"]
+    privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT"]
   }
 
   depends_on = [time_sleep.wait_for_system_schemas]

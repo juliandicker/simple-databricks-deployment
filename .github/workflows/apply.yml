@@ -123,6 +123,23 @@ jobs:
       # Governed tag ASSIGN grants are not configurable via API and must be applied manually.
       # See the governance repo's docs/governed-tag-grants.md for the step-by-step procedure.
 
+      # usage_dashboards.create() has no owner param — the dashboard's owner is
+      # whoever's credentials call it. Re-authenticating as sp-data-platform
+      # here (it's already account_admin via sg-dbplat-data-platform-admins)
+      # makes it the owner instead of the CI deploy SP used for everything above.
+      - name: Azure login as sp-data-platform (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.tf.outputs.platform_sp_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Exchange sp-data-platform token for Databricks token
+        run: |
+          echo "DATABRICKS_TOKEN=$(az account get-access-token \
+            --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d \
+            --query accessToken -o tsv)" >> $GITHUB_ENV
+
       - name: Create account usage dashboard (v2)
         env:
           DATABRICKS_HOST: ${{ steps.tf.outputs.workspace_url }}

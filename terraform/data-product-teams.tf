@@ -79,6 +79,20 @@ resource "azuread_application_federated_identity_credential" "teams" {
   audiences      = ["api://AzureADTokenExchange"]
 }
 
+# Second federated credential for sp-data-platform, scoped to *this* repo
+# (governance's, above, only trusts databricks-platform-governance). Lets
+# this repo's apply.yml authenticate directly as sp-data-platform for the
+# account-level usage-dashboard create call, so the dashboard's owner is
+# sp-data-platform (already account_admin via sg-dbplat-data-platform-admins
+# membership) rather than the CI deploy SP that runs the rest of the apply.
+resource "azuread_application_federated_identity_credential" "platform_sp_this_repo" {
+  application_id = azuread_application.teams["data_platform_admins"].id
+  display_name   = "github-actions-data-platform-admins-simple-databricks-deployment-dev"
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = "repo:juliandicker/simple-databricks-deployment:environment:dev"
+  audiences      = ["api://AzureADTokenExchange"]
+}
+
 # Register in Databricks workspace (also makes SP visible at account level for UC grants).
 resource "databricks_service_principal" "teams" {
   provider       = databricks.workspace
