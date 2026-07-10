@@ -25,6 +25,7 @@ groups = {
   data_stewards = {
     display_name         = "sg-dbplat-data-stewards"
     workspace_permission = "USER"
+    inject_owner         = true   # merges TF_VAR_owner into this group's users at plan time
   }
   pii_readers = {
     display_name         = "sg-dbplat-pii-readers"
@@ -77,7 +78,7 @@ data_product_teams = {
     budget = {
       enabled             = true
       alert_threshold_usd = 200
-      alert_email         = "julian@redkic.co.uk"
+      # alert_email omitted — falls back to var.owner (see budgets.tf)
     }
   }
 }

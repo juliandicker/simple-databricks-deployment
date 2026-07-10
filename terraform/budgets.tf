@@ -13,7 +13,7 @@
 locals {
   teams_with_budget = {
     for k, v in var.data_product_teams : k => v
-    if v.budget.enabled && v.budget.alert_email != null
+    if v.budget.enabled && coalesce(v.budget.alert_email, var.owner, "") != ""
   }
 }
 
@@ -120,7 +120,7 @@ resource "databricks_budget" "team" {
 
     action_configurations {
       action_type = "EMAIL_NOTIFICATION"
-      target      = each.value.budget.alert_email
+      target      = coalesce(each.value.budget.alert_email, var.owner)
     }
   }
 
