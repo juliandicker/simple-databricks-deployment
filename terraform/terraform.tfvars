@@ -86,7 +86,7 @@ data_product_teams = {
 platform_budget = {
   enabled             = true
   alert_threshold_usd = 1000
-  alert_email         = "julian@redkic.co.uk"
+  # alert_email omitted — falls back to var.owner (see budgets.tf)
 }
 
 group_members = {

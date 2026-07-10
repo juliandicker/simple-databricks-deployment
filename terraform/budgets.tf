@@ -147,7 +147,7 @@ resource "databricks_budget" "team" {
 
 resource "databricks_budget" "platform" {
   provider = databricks.accounts
-  count    = var.platform_budget.enabled && var.platform_budget.alert_email != null ? 1 : 0
+  count    = var.platform_budget.enabled && coalesce(var.platform_budget.alert_email, var.owner, "") != "" ? 1 : 0
 
   display_name = "platform-monthly"
 
@@ -159,7 +159,7 @@ resource "databricks_budget" "platform" {
 
     action_configurations {
       action_type = "EMAIL_NOTIFICATION"
-      target      = var.platform_budget.alert_email
+      target      = coalesce(var.platform_budget.alert_email, var.owner)
     }
   }
 
