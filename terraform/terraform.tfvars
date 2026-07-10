@@ -60,7 +60,7 @@ data_product_teams = {
     budget = {
       enabled             = true
       alert_threshold_usd = 500
-      alert_email         = "julian@redkic.co.uk"
+      # alert_email omitted — falls back to var.owner (see budgets.tf)
     }
   }
   travel = {
