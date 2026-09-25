@@ -55,7 +55,7 @@ output "team_budget_policy_ids" {
 
 output "platform_budget_policy_id" {
   description = "Databricks budget policy ID for platform (data_platform_admins group) serverless activity."
-  value       = databricks_budget_policy.platform.policy_id
+  value       = try(databricks_budget_policy.platform[0].policy_id, null)
 }
 
 output "team_budget_ids" {

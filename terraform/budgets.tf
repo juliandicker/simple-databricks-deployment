@@ -15,6 +15,14 @@ locals {
     for k, v in var.data_product_teams : k => v
     if v.budget.enabled && coalesce(v.budget.alert_email, var.owner, "") != ""
   }
+
+  # Temporary kill switch: the account is stuck returning "Duplicate policy
+  # name found" for team-data_platform_admins/team-travel/platform even
+  # though databricks_budget_policy.list() shows zero policies — suspected
+  # orphaned entries from a prior destroy/apply cycle not visible via the
+  # list API. Sourced from repeated apply failures on 2026-09-25; re-enable
+  # once Databricks support confirms the account-side state is clean.
+  budget_policies_enabled = false
 }
 
 # ---------------------------------------------------------------------------
@@ -25,7 +33,7 @@ locals {
 
 resource "databricks_budget_policy" "team" {
   provider  = databricks.accounts
-  for_each  = var.data_product_teams
+  for_each  = local.budget_policies_enabled ? var.data_product_teams : {}
 
   policy_name           = "team-${each.key}"
   binding_workspace_ids = [azurerm_databricks_workspace.this.workspace_id]
@@ -44,6 +52,7 @@ resource "databricks_budget_policy" "team" {
 
 resource "databricks_budget_policy" "platform" {
   provider = databricks.accounts
+  count    = local.budget_policies_enabled ? 1 : 0
 
   policy_name           = "platform"
   binding_workspace_ids = [azurerm_databricks_workspace.this.workspace_id]
@@ -64,7 +73,7 @@ resource "databricks_budget_policy" "platform" {
 
 resource "databricks_access_control_rule_set" "team_budget_policy" {
   provider = databricks.accounts
-  for_each = var.data_product_teams
+  for_each = local.budget_policies_enabled ? var.data_product_teams : {}
 
   name = "accounts/${var.databricks_account_id}/budgetPolicies/${databricks_budget_policy.team[each.key].policy_id}/ruleSets/default"
 
@@ -86,8 +95,9 @@ resource "databricks_access_control_rule_set" "team_budget_policy" {
 
 resource "databricks_access_control_rule_set" "platform_budget_policy" {
   provider = databricks.accounts
+  count    = local.budget_policies_enabled ? 1 : 0
 
-  name = "accounts/${var.databricks_account_id}/budgetPolicies/${databricks_budget_policy.platform.policy_id}/ruleSets/default"
+  name = "accounts/${var.databricks_account_id}/budgetPolicies/${databricks_budget_policy.platform[0].policy_id}/ruleSets/default"
 
   grant_rules {
     role       = "roles/budgetPolicy.user"
